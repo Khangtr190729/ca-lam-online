@@ -41,5 +41,4 @@
 | Công cụ | Mục đích sử dụng |
 |---|---|
 | GitHub | Quản lý source code và lịch sử thay đổi. |
-| Postman | Gửi request và kiểm thử REST API. |
-| Thunder Client | Kiểm thử REST API trực tiếp trong VS Code. |
+| Thunder Client, Postman | Kiểm thử REST API trực tiếp trong VS Code. |
