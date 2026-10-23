@@ -10,7 +10,7 @@ import DashboardPage from '../pages/DashboardPage';
 import ProfilePage from '../pages/ProfilePage';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
-import MobileAppView from '../pages/MobileAppView';
+import MySchedulePage from '../pages/MySchedulePage';
 
 // Protected Route Guard
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -87,7 +87,7 @@ export const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <div className="min-h-screen flex flex-col bg-[#FFF7F0]">
-              <MobileAppView />
+              <MySchedulePage />
             </div>
           </ProtectedRoute>
         }

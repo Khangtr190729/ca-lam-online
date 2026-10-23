@@ -31,7 +31,7 @@ import {
   getWeekNumberAndYear
 } from '../utils/formatters';
 
-export const MobileAppView = () => {
+export const MySchedulePage = () => {
   const { user, store, refreshUser, logout } = useAuth();
 
   // Navigation tab: 'schedule' | 'notifications' | 'profile'
@@ -876,4 +876,4 @@ export const MobileAppView = () => {
   );
 };
 
-export default MobileAppView;
+export default MySchedulePage;
