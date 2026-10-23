@@ -346,7 +346,8 @@ export const joinByCode = async (req, res) => {
  */
 export const inviteById = async (req, res) => {
   try {
-    const { identifier, employmentType, hourlyWage } = req.body;
+    const { email, identifier, targetUserId, employmentType, hourlyWage } = req.body;
+    const cleanEmail = (email || identifier || targetUserId || '').trim();
     const userId = req.user.id;
 
     if (req.user.systemRole !== 'ADMIN') {
@@ -356,10 +357,10 @@ export const inviteById = async (req, res) => {
       });
     }
 
-    if (!identifier || !identifier.trim()) {
+    if (!cleanEmail) {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng cung cấp Mã ID hoặc Email của nhân viên.',
+        message: 'Vui lòng cung cấp Email của nhân viên.',
       });
     }
 
@@ -371,22 +372,17 @@ export const inviteById = async (req, res) => {
       });
     }
 
-    // 1. Tìm tài khoản nhân viên theo _id (nếu đúng định dạng ObjectId) hoặc theo email
-    const cleanId = identifier.trim();
-    let targetUser = null;
+    // 1. Tìm tài khoản nhân viên theo Email (ưu tiên) hoặc ID
+    let targetUser = await User.findOne({ email: cleanEmail.toLowerCase() });
 
-    if (mongoose.Types.ObjectId.isValid(cleanId)) {
-      targetUser = await User.findById(cleanId);
-    }
-
-    if (!targetUser) {
-      targetUser = await User.findOne({ email: cleanId.toLowerCase() });
+    if (!targetUser && mongoose.Types.ObjectId.isValid(cleanEmail)) {
+      targetUser = await User.findById(cleanEmail);
     }
 
     if (!targetUser) {
       return res.status(404).json({
         success: false,
-        message: `Không tìm thấy tài khoản nhân viên nào khớp với "${cleanId}".`,
+        message: `Không tìm thấy tài khoản nhân viên nào với Email "${cleanEmail}". Vui lòng kiểm tra lại hoặc yêu cầu nhân viên đăng ký tài khoản trước.`,
       });
     }
 

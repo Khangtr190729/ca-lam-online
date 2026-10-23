@@ -16,7 +16,8 @@ import {
   MapPin,
   Sparkles,
   ArrowRight,
-  Info
+  Info,
+  Copy
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { scheduleApi, storeApi, userApi } from '../services/api';
@@ -47,6 +48,15 @@ export const MobileAppView = () => {
   const [inviteCodeDigits, setInviteCodeDigits] = useState(['', '', '', '', '', '']);
   const [joining, setJoining] = useState(false);
   const [joinFeedback, setJoinFeedback] = useState(null);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const handleCopyUserEmail = () => {
+    const email = user?.email || '';
+    if (!email) return;
+    navigator.clipboard.writeText(email);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
+  };
 
   // Profile modal / state
   const [profileForm, setProfileForm] = useState({
@@ -182,89 +192,139 @@ export const MobileAppView = () => {
   }, [scheduleData]);
 
   return (
-    <div className="flex-1 flex flex-col bg-[#FFF7F0] text-[#252525] min-h-full font-['Be_Vietnam_Pro',sans-serif] max-w-lg mx-auto w-full">
+    <div className="flex-1 flex flex-col bg-[#FFF7F0] text-[#252525] min-h-full font-['Be_Vietnam_Pro',sans-serif] w-full max-w-lg md:max-w-4xl lg:max-w-5xl mx-auto md:py-8 md:px-4">
       {/* CASE 1: Employee Has Not Joined Any Store Yet */}
       {!store ? (
-        <div className="flex-1 p-6 flex flex-col justify-between">
+        <div className="flex-1 p-6 md:p-8 flex flex-col justify-between bg-white md:rounded-3xl md:border md:border-orange-200/80 md:shadow-md my-auto">
           <div>
             {/* Header branding */}
-            <div className="text-center pt-4 pb-6">
-              <div className="w-16 h-16 rounded-2xl bg-white shadow-md mx-auto p-2 flex items-center justify-center mb-3 border border-orange-100">
+            <div className="text-center pt-2 pb-6 md:pb-8">
+              <div className="w-16 h-16 rounded-2xl bg-[#FFF7F0] shadow-sm mx-auto p-2 flex items-center justify-center mb-3 border border-orange-100">
                 <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
-              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
                 Tham gia Cửa hàng
               </h2>
-              <p className="text-xs text-slate-500 mt-1 max-w-[280px] mx-auto">
-                Nhập <b>mã mời 6 chữ số</b> do Chủ quán hoặc Quản lý cung cấp để bắt đầu xem ca làm.
+              <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto">
+                Nhập <b>Mã mời 6 chữ số</b> do Chủ quán cấp, hoặc gửi <b>Email tài khoản</b> của bạn để Chủ quán thêm trực tiếp.
               </p>
             </div>
 
-            {/* 6-digit OTP Inputs */}
-            <form onSubmit={handleJoinStore} className="space-y-6">
-              <div className="flex justify-center gap-2 sm:gap-2.5">
-                {inviteCodeDigits.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    id={`digit-${idx}`}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleDigitChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleDigitKeyDown(idx, e)}
-                    className="w-11 h-13 text-center text-xl font-extrabold font-mono rounded-xl bg-white border-2 border-slate-200 focus:border-[#EA701B] focus:ring-2 focus:ring-orange-100 text-slate-800 shadow-xs focus:outline-none transition"
-                  />
-                ))}
+            {/* 2-Column Responsive Layout on Desktop */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start">
+              {/* CÁCH 1: NHẬP MÃ MỜI 6 SỐ */}
+              <div className="bg-[#FFFDFB] p-5 md:p-6 rounded-2xl border border-orange-100 shadow-xs space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-[#EA701B] text-white flex items-center justify-center text-xs font-bold">1</div>
+                  <h3 className="text-sm font-bold text-slate-900">Nhập mã mời 6 chữ số</h3>
+                </div>
+
+                <form onSubmit={handleJoinStore} className="space-y-4">
+                  <div className="flex justify-center gap-2 sm:gap-2.5">
+                    {inviteCodeDigits.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        id={`digit-${idx}`}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleDigitKeyDown(idx, e)}
+                        className="w-11 h-13 text-center text-xl font-extrabold font-mono rounded-xl bg-white border-2 border-slate-200 focus:border-[#EA701B] focus:ring-2 focus:ring-orange-100 text-slate-800 shadow-xs focus:outline-none transition"
+                      />
+                    ))}
+                  </div>
+
+                  {joinFeedback && (
+                    <div
+                      className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                        joinFeedback.type === 'success'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-red-50 text-red-800 border border-red-200'
+                      }`}
+                    >
+                      {joinFeedback.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                      )}
+                      <span>{joinFeedback.message}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={joining}
+                    className="w-full py-3 bg-[#EA701B] hover:bg-[#D55E0D] text-white font-bold text-sm rounded-xl shadow-md shadow-orange-500/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {joining ? 'Đang xác thực...' : 'Xác nhận mã mời'}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+
+                <div className="p-3 bg-[#FFF0E5] rounded-xl border border-orange-200/60 text-xs text-slate-600 flex gap-2.5">
+                  <Info className="w-4 h-4 text-[#EA701B] shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-slate-600">
+                    Mã mời có hiệu lực trong <b>60 phút</b>. Nếu hết hạn, hãy nhờ Chủ quán tạo lại mã mới.
+                  </p>
+                </div>
               </div>
 
-              {joinFeedback && (
-                <div
-                  className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-                    joinFeedback.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                      : 'bg-red-50 text-red-800 border border-red-200'
-                  }`}
-                >
-                  {joinFeedback.type === 'success' ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                  )}
-                  <span>{joinFeedback.message}</span>
+              {/* CÁCH 2: GỬI EMAIL CHO CHỦ QUÁN */}
+              <div className="bg-[#FFFDFB] p-5 md:p-6 rounded-2xl border border-orange-100 shadow-xs space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center text-xs font-bold">2</div>
+                  <h3 className="text-sm font-bold text-slate-900">Hoặc gửi Email cho Chủ quán</h3>
                 </div>
-              )}
 
-              <button
-                type="submit"
-                disabled={joining}
-                className="w-full py-3.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white font-bold text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {joining ? 'Đang xác thực...' : 'Xác nhận mã mời'}
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
+                <div className="space-y-3">
+                  <div>
+                    <span className="block text-[11px] font-semibold text-slate-500 mb-1">Email đăng ký của bạn:</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-xl font-mono text-xs font-bold text-slate-800 select-all truncate">
+                        {user?.email || 'N/A'}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyUserEmail}
+                        className="px-3.5 py-2.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-[#EA701B] font-bold text-xs rounded-xl flex items-center gap-1.5 shrink-0 transition"
+                      >
+                        {copiedEmail ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-emerald-700">Đã chép</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Sao chép Email</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
 
-            <div className="mt-6 p-4 bg-[#FFF0E5] rounded-2xl border border-orange-200/60 text-xs text-slate-600 flex gap-3">
-              <Info className="w-4 h-4 text-[#EA701B] shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-[#EA701B]">Lưu ý mã mời:</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Mã mời chỉ có hiệu lực trong <b>60 phút</b> kể từ khi Chủ quán tạo. Nếu mã hết hạn, hãy nhờ chủ quán tạo mã mới.
-                </p>
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/60 text-xs text-amber-900 flex gap-2.5">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[11px] leading-relaxed">
+                      Bạn chỉ cần gửi <b>Email ({user?.email})</b> này cho Chủ quán để được thêm vào danh sách nhân sự ngay lập tức!
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Bottom user logout */}
-          <div className="pt-6 border-t border-slate-200/60 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Đăng nhập: <b>{user?.name}</b></span>
+          <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-slate-500">Đang đăng nhập: <b className="text-slate-800">{user?.name}</b></span>
             <button
               type="button"
               onClick={logout}
-              className="text-red-600 font-bold hover:underline flex items-center gap-1"
+              className="text-red-600 font-bold hover:underline flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-50 transition"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-4 h-4" />
               Đăng xuất
             </button>
           </div>
@@ -272,6 +332,87 @@ export const MobileAppView = () => {
       ) : (
         /* CASE 2: Employee Is A Member of Store */
         <div className="flex-1 flex flex-col justify-between overflow-hidden">
+          {/* Desktop Top Header & Tabs (Visible only on md: screens and above) */}
+          <div className="hidden md:flex items-center justify-between bg-white px-6 py-3.5 rounded-2xl border border-slate-200/80 shadow-xs mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center text-[#EA701B] font-bold text-sm">
+                <Store className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-sm font-extrabold text-slate-900">{store.name}</h1>
+                <p className="text-[11px] text-slate-500">Kênh nhân viên</p>
+              </div>
+            </div>
+
+            {/* Desktop Navigation Tabs */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setActiveTab('schedule')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'schedule'
+                    ? 'bg-[#EA701B] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Lịch làm việc</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('notifications')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'notifications'
+                    ? 'bg-[#EA701B] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                <Bell className="w-4 h-4" />
+                <span>Thông báo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'profile'
+                    ? 'bg-[#EA701B] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                <User className="w-4 h-4" />
+                <span>Cá nhân</span>
+              </button>
+            </div>
+
+            {/* Right: User Email & Logout */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl">
+                <span className="text-xs font-semibold text-slate-700 truncate max-w-[200px]" title={user?.email}>
+                  {user?.email}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyUserEmail}
+                  className="text-[10px] font-bold text-[#EA701B] hover:underline"
+                  title="Sao chép Email"
+                >
+                  {copiedEmail ? 'Đã chép' : 'Chép'}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={logout}
+                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
+                title="Đăng xuất"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
           {/* Main Scrollable Tab Content */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
             
@@ -521,7 +662,28 @@ export const MobileAppView = () => {
                     {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
                   </div>
                   <h3 className="text-sm font-bold text-slate-900">{user?.name}</h3>
-                  <p className="text-xs text-slate-500 font-mono">{user?.email}</p>
+                  <div className="mt-1 flex items-center justify-center gap-2">
+                    <span className="text-xs text-slate-600 font-mono bg-slate-100 px-3 py-1 rounded-lg">
+                      {user?.email}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyUserEmail}
+                      className="text-[11px] font-bold text-[#EA701B] hover:underline flex items-center gap-1"
+                    >
+                      {copiedEmail ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Đã chép</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Chép Email</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <div className="mt-2 inline-block px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
                     Nhân viên tại {store.name}
                   </div>
@@ -596,8 +758,8 @@ export const MobileAppView = () => {
 
           </div>
 
-          {/* iOS Bottom Navigation Bar (3 Tabs: Lịch làm, Thông báo, Cá nhân) */}
-          <div className="bg-white border-t border-slate-200/80 px-6 py-2 flex items-center justify-around select-none">
+          {/* iOS Bottom Navigation Bar (Hidden on desktop md:hidden) */}
+          <div className="md:hidden bg-white border-t border-slate-200/80 px-6 py-2 flex items-center justify-around select-none">
             <button
               type="button"
               onClick={() => setActiveTab('schedule')}

@@ -8,7 +8,8 @@ import {
   X,
   Shield,
   Mail,
-  Calendar
+  Calendar,
+  Copy
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { userApi } from '../services/api';
@@ -17,6 +18,15 @@ import { getRoleLabel } from '../utils/formatters';
 export const ProfilePage = () => {
   const { user, roleInStore, refreshUser } = useAuth();
   const roleBadge = getRoleLabel(roleInStore || user?.role);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const handleCopyEmail = () => {
+    const email = user?.email || '';
+    if (!email) return;
+    navigator.clipboard.writeText(email);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
+  };
 
   // Profile info form
   const [profileForm, setProfileForm] = useState({
@@ -144,13 +154,36 @@ export const ProfilePage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Email tài khoản</label>
-              <input
-                type="email"
-                value={user?.email || ''}
-                disabled
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 text-slate-400 cursor-not-allowed"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">Email tài khoản</label>
+                <span className="text-[10px] text-slate-400">Dùng để Chủ quán mời bạn vào cửa hàng</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 text-slate-700 select-all"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyEmail}
+                  className="px-3.5 py-2.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-[#EA701B] rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0"
+                  title="Sao chép Email"
+                >
+                  {copiedEmail ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-700">Đã chép</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Sao chép Email</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div>

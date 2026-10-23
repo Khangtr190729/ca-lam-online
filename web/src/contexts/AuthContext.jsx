@@ -27,8 +27,11 @@ export const AuthProvider = ({ children }) => {
 
       if (res.success && rawUser) {
         // Normalize fields
+        const actualId = String(rawUser._id || rawUser.id || '');
         const normalizedUser = {
           ...rawUser,
+          _id: actualId,
+          id: actualId,
           name: rawUser.fullName || rawUser.name,
           role: rawUser.systemRole || rawUser.role
         };

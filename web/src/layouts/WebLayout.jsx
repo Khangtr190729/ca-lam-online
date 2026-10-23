@@ -12,7 +12,9 @@ import {
   Store as StoreIcon,
   ShieldCheck,
   Menu,
-  X
+  X,
+  Copy,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Logo from '../components/Logo';
@@ -24,6 +26,16 @@ export const WebLayout = () => {
   const location = useLocation();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const handleCopyEmail = (e) => {
+    e.stopPropagation();
+    const email = user?.email || '';
+    if (!email) return;
+    navigator.clipboard.writeText(email);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
+  };
 
   const roleInfo = getRoleLabel(roleInStore || user?.role);
   const isAdmin = roleInStore === 'ADMIN' || user?.role === 'ADMIN';
@@ -158,9 +170,31 @@ export const WebLayout = () => {
                   className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-1 z-50 animate-fade-in"
                   onClick={() => setUserMenuOpen(false)}
                 >
-                  <div className="px-4 py-2 border-b border-slate-100">
-                    <p className="text-xs text-slate-500">Đăng nhập bằng</p>
-                    <p className="text-xs font-bold text-slate-800 truncate">{user?.email}</p>
+                  <div className="px-4 py-2.5 border-b border-slate-100">
+                    <p className="text-[11px] text-slate-500">Đăng nhập bằng</p>
+                    <div className="flex items-center justify-between gap-1 mt-0.5">
+                      <p className="text-xs font-bold text-slate-800 truncate" title={user?.email}>
+                        {user?.email}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleCopyEmail}
+                        className="text-[10px] font-bold text-[#EA701B] hover:underline flex items-center gap-1 shrink-0"
+                        title="Sao chép Email"
+                      >
+                        {copiedEmail ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-700">Đã chép</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Chép</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <NavLink
                     to="/profile"

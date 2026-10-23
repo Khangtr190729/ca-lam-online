@@ -55,9 +55,8 @@ export const StoreManagementPage = () => {
   const [copied, setCopied] = useState(false);
   const [remainingTime, setRemainingTime] = useState('');
 
-  // Direct invite form (by ID or Email)
+  // Direct invite form (by Email)
   const [directForm, setDirectForm] = useState({
-    targetUserId: '',
     email: '',
     hourlyWage: 20000,
     employmentType: 'PART_TIME'
@@ -172,13 +171,14 @@ export const StoreManagementPage = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Direct invite by ID or Email
+  // Direct invite by Email
   const handleDirectInvite = async (e) => {
     e.preventDefault();
-    if (!directForm.targetUserId && !directForm.email) {
+    const email = directForm.email?.trim() || '';
+    if (!email) {
       setFeedback({
         type: 'error',
-        message: 'Vui lòng nhập Mã ID tài khoản hoặc Email nhân viên.'
+        message: 'Vui lòng nhập Email của nhân viên cần mời.'
       });
       return;
     }
@@ -187,8 +187,7 @@ export const StoreManagementPage = () => {
       setInvitingDirect(true);
       setFeedback(null);
       const payload = {
-        targetUserId: directForm.targetUserId || undefined,
-        email: directForm.email || undefined,
+        email,
         hourlyWage: Number(directForm.hourlyWage),
         employmentType: directForm.employmentType
       };
@@ -196,10 +195,9 @@ export const StoreManagementPage = () => {
       if (res.success) {
         setFeedback({
           type: 'success',
-          message: 'Đã thêm/mời nhân viên vào cửa hàng thành công!'
+          message: res.message || 'Đã thêm nhân viên vào cửa hàng thành công!'
         });
         setDirectForm({
-          targetUserId: '',
           email: '',
           hourlyWage: 20000,
           employmentType: 'PART_TIME'
@@ -428,43 +426,31 @@ export const StoreManagementPage = () => {
         </div>
       </div>
 
-      {/* SECTION 2: DIRECT INVITATION (BY ID OR EMAIL) */}
+      {/* SECTION 2: DIRECT INVITATION BY EMAIL */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
         <div className="pb-3 border-b border-slate-100 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
             <UserPlus className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Mời nhân viên trực tiếp (Mã ID hoặc Email)</h3>
+            <h3 className="text-sm font-bold text-slate-900">Mời nhân viên bằng Email</h3>
             <p className="text-xs text-slate-500">
-              Chủ động thêm nhân viên đã có tài khoản vào danh sách nhân sự của quán
+              Chủ động thêm nhân viên đã có tài khoản vào danh sách nhân sự của quán qua địa chỉ Email
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleDirectInvite} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleDirectInvite} className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Mã ID tài khoản (Tùy chọn)
-            </label>
-            <input
-              type="text"
-              placeholder="Ví dụ: 6512abcd..."
-              value={directForm.targetUserId}
-              onChange={(e) => setDirectForm((prev) => ({ ...prev, targetUserId: e.target.value }))}
-              className="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#EA701B]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Hoặc Email nhân viên
+              Email nhân viên
             </label>
             <input
               type="email"
               placeholder="nhanvien@gmail.com"
               value={directForm.email}
               onChange={(e) => setDirectForm((prev) => ({ ...prev, email: e.target.value }))}
+              required
               className="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#EA701B]"
             />
           </div>
@@ -498,7 +484,7 @@ export const StoreManagementPage = () => {
             </select>
           </div>
 
-          <div className="md:col-span-2 flex justify-end">
+          <div className="md:col-span-3 flex justify-end">
             <button
               type="submit"
               disabled={invitingDirect}
