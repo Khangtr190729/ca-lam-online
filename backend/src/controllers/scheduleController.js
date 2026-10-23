@@ -59,6 +59,56 @@ const checkShiftOverlap = (shift1, shift2) => {
 };
 
 /**
+ * Trích xuất ID dạng chuỗi an toàn (hỗ trợ cả ObjectId, String, hoặc Object {_id})
+ */
+const extractId = (val) => {
+  if (!val) return '';
+  if (typeof val === 'object') return String(val._id || val.id || '');
+  return String(val);
+};
+
+/**
+ * Lấy ngày hôm nay theo định dạng "YYYY-MM-DD" (chuẩn múi giờ Việt Nam UTC+7)
+ */
+const getTodayDateString = () => {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+};
+
+/**
+ * Kiểm tra các ca phân công mới có bị rơi vào ngày trong quá khứ không.
+ * Các ca đã tồn tại từ trước trong DB của tuần này vẫn được giữ lại,
+ * nhưng người dùng KHÔNG ĐƯỢC PHÉP thêm mới hoặc sửa vào các ngày trong quá khứ.
+ */
+const validateNoNewPastAssignments = (rawAssignments, existingAssignments = []) => {
+  const todayStr = getTodayDateString();
+  const existingSet = new Set(
+    existingAssignments.map(
+      (a) => `${a.date}_${extractId(a.shiftId)}_${extractId(a.userId)}`
+    )
+  );
+
+  for (const item of rawAssignments) {
+    if (item.date && item.date < todayStr) {
+      const sId = extractId(item.shiftId);
+      const uId = extractId(item.userId);
+      const key = `${item.date}_${sId}_${uId}`;
+      if (!existingSet.has(key)) {
+        const err = new Error(
+          `Lỗi xếp lịch: Ngày ${item.date} đã qua trong quá khứ. Hệ thống chỉ cho phép xếp lịch cho ngày hiện tại (${todayStr}) và các ngày tương lai!`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+  }
+};
+
+/**
  * Xử lý tính toán tiền lương cho từng ca và tổng kết lương cả tuần
  */
 const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
@@ -82,13 +132,6 @@ const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
       memberMap[m.userId._id.toString()] = m;
     }
   });
-
-  // Helper trích xuất ID dạng chuỗi (hỗ trợ cả ObjectId, String, hoặc Object {_id})
-  const extractId = (val) => {
-    if (!val) return '';
-    if (typeof val === 'object') return String(val._id || val.id || '');
-    return String(val);
-  };
 
   // 3. Kiểm tra logic trùng giờ làm việc: 1 người không thể làm 2 ca trùng/giao thoa giờ trong 1 ngày
   const userDateShifts = {};
@@ -338,6 +381,26 @@ export const saveDraftSchedule = async (req, res) => {
       });
     }
 
+    // Kiểm tra tuần đã kết thúc hoàn toàn trong quá khứ chưa
+    const todayStr = getTodayDateString();
+    const formattedEndDate = typeof endDate === 'string' ? endDate.split('T')[0] : '';
+    if (formattedEndDate && formattedEndDate < todayStr) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể chỉnh sửa hoặc lưu lịch làm việc cho tuần đã kết thúc trong quá khứ.',
+      });
+    }
+
+    // Tìm lịch tuần hiện tại trong DB để đối chiếu ca đã có
+    let schedule = await Schedule.findOne({
+      storeId,
+      week: Number(week),
+      year: Number(year),
+    });
+
+    // Xác thực không cho phép thêm mới hoặc gán ca vào ngày trong quá khứ
+    validateNoNewPastAssignments(assignments, schedule?.assignments || []);
+
     // 1. Tính toán lương tự động cho từng ca
     const { processedAssignments, salarySummary } = await processAssignmentsAndSalary(
       storeId,
@@ -345,12 +408,6 @@ export const saveDraftSchedule = async (req, res) => {
     );
 
     // 2. Tìm hoặc tạo bản ghi lịch tuần
-    let schedule = await Schedule.findOne({
-      storeId,
-      week: Number(week),
-      year: Number(year),
-    });
-
     if (schedule) {
       schedule.startDate = new Date(startDate);
       schedule.endDate = new Date(endDate);
@@ -419,6 +476,15 @@ export const publishSchedule = async (req, res) => {
       });
     }
 
+    const todayStr = getTodayDateString();
+    const formattedEndDate = typeof endDate === 'string' ? endDate.split('T')[0] : '';
+    if (formattedEndDate && formattedEndDate < todayStr) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể xuất bản lịch làm việc cho tuần đã kết thúc trong quá khứ.',
+      });
+    }
+
     let schedule = await Schedule.findOne({
       storeId,
       week: Number(week),
@@ -429,6 +495,7 @@ export const publishSchedule = async (req, res) => {
 
     // Nếu người dùng gửi kèm assignments mới trước khi bấm xuất bản
     if (Array.isArray(assignments)) {
+      validateNoNewPastAssignments(assignments, schedule?.assignments || []);
       processedData = await processAssignmentsAndSalary(storeId, assignments);
 
       if (!schedule) {
@@ -479,12 +546,38 @@ export const publishSchedule = async (req, res) => {
       }
     }
 
+    const failedEmails = emailResults.filter((r) => !r.success);
+    const successEmails = emailResults.filter((r) => r.success && !r.simulated);
+    const simulatedEmails = emailResults.filter((r) => r.simulated);
+
+    let emailMsg = '';
+    if (failedEmails.length > 0) {
+      const isAuthError = failedEmails.some(
+        (f) =>
+          f.error &&
+          (f.error.includes('535') ||
+            f.error.includes('Username and Password not accepted') ||
+            f.error.includes('BadCredentials'))
+      );
+      if (isAuthError) {
+        emailMsg =
+          ' (LƯU Ý: Gửi email thất bại do mật khẩu Gmail trong .env là mật khẩu thường. Google yêu cầu dùng "Mật khẩu ứng dụng" - App Password 16 chữ số để gửi thư tự động qua Nodemailer).';
+      } else {
+        emailMsg = ` (Lưu ý: Có ${failedEmails.length} email gửi thất bại: ${failedEmails[0].error}).`;
+      }
+    } else if (simulatedEmails.length > 0) {
+      emailMsg = ' (Chưa cấu hình EMAIL_USER/EMAIL_PASS trong .env nên hệ thống mô phỏng và bỏ qua gửi thật).';
+    } else if (successEmails.length > 0) {
+      emailMsg = ` Đã gửi email thông báo chi tiết lịch trực kèm tiền lương đến ${successEmails.length} nhân viên.`;
+    }
+
     return res.status(200).json({
       success: true,
-      message: `Xuất bản lịch Tuần ${week}/${year} thành công! Đã gửi email thông báo chi tiết lịch trực kèm tiền lương đến ${recipients.length} nhân viên.`,
+      message: `Xuất bản lịch Tuần ${week}/${year} thành công!${emailMsg}`,
       schedule,
       salarySummary: processedData.salarySummary,
       emailsSent: emailResults,
+      hasEmailError: failedEmails.length > 0,
     });
   } catch (error) {
     console.error('Lỗi xuất bản lịch & gửi mail:', error);
@@ -616,6 +709,15 @@ export const autoGenerateSchedule = async (req, res) => {
       });
     }
 
+    const todayStr = getTodayDateString();
+    const formattedEndDate = typeof endDate === 'string' ? endDate.split('T')[0] : '';
+    if (formattedEndDate && formattedEndDate < todayStr) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể tự động xếp lịch cho tuần đã kết thúc trong quá khứ. Vui lòng chọn tuần hiện tại hoặc tương lai.',
+      });
+    }
+
     // 1. Lấy danh sách ca làm việc của quán
     const shifts = await Shift.find({ storeId, isActive: { $ne: false } }).sort({ startTime: 1 });
     if (!shifts || shifts.length === 0) {
@@ -713,6 +815,11 @@ export const autoGenerateSchedule = async (req, res) => {
 
     // 5. Thuật toán tự động xếp ca thông minh & cân bằng tải (Fair & Optimal Scheduling)
     for (const day of weekDays) {
+      // Vá lỗi logic: Không chia ca cho các ngày đã qua trong quá khứ, chỉ chia cho ngày hiện tại và tương lai
+      if (day.date < todayStr) {
+        continue;
+      }
+
       for (const shift of shifts) {
         const sId = shift._id.toString();
 

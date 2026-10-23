@@ -90,6 +90,7 @@ export const getDaysOfWeek = (mondayStr) => {
       displayDate: `${String(dayOfMonth).padStart(2, '0')}/${String(month).padStart(2, '0')}`,
       fullDisplay: `${vietnameseDays[i]}, ${String(dayOfMonth).padStart(2, '0')}/${String(month).padStart(2, '0')}`,
       isToday: formatDateToISO(new Date()) === isoDate,
+      isPast: isoDate < formatDateToISO(new Date()),
       rawDate: d
     });
   }

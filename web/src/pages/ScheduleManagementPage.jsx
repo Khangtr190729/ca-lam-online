@@ -86,6 +86,11 @@ export const ScheduleManagementPage = () => {
 
   const daysOfWeek = useMemo(() => getDaysOfWeek(currentMonday), [currentMonday]);
   const { week, year } = useMemo(() => getWeekNumberAndYear(currentMonday), [currentMonday]);
+  const todayDateStr = useMemo(() => formatDateToISO(new Date()), []);
+  const isPastWeek = useMemo(
+    () => Boolean(daysOfWeek[6]?.dateStr && daysOfWeek[6].dateStr < todayDateStr),
+    [daysOfWeek, todayDateStr]
+  );
 
   // Load shifts and members for the current store
   const loadStoreData = useCallback(async () => {
@@ -334,10 +339,24 @@ export const ScheduleManagementPage = () => {
 
   // Mở modal quản lý danh sách nhân viên trong ca làm việc
   const handleOpenAssignModal = (dateStr, shiftId) => {
+    const currentShiftId = getShiftId(shiftId);
+    const currentCellAssignments = assignments.filter(
+      (a) => a.date === dateStr && getShiftId(a.shiftId) === currentShiftId
+    );
+
+    // Nếu ngày trong quá khứ và ô trống chưa xếp ai, không cho phép mở phân ca
+    if (dateStr < todayDateStr && currentCellAssignments.length === 0) {
+      setFeedback({
+        type: 'error',
+        message: `Ngày ${dateStr} đã qua trong quá khứ. Hệ thống chỉ cho phép xếp lịch cho ngày hiện tại và tương lai!`
+      });
+      return;
+    }
+
     setAssignModal({
       isOpen: true,
       date: dateStr,
-      shiftId: getShiftId(shiftId),
+      shiftId: currentShiftId,
       selectedUserId: ''
     });
   };
@@ -347,6 +366,15 @@ export const ScheduleManagementPage = () => {
     if (!assignModal.selectedUserId || !assignModal.date || !assignModal.shiftId) return;
     const uid = getUserId(assignModal.selectedUserId);
     const sid = getShiftId(assignModal.shiftId);
+
+    // Không cho phép thêm ca vào ngày quá khứ
+    if (assignModal.date < todayDateStr) {
+      setFeedback({
+        type: 'error',
+        message: `Ngày ${assignModal.date} đã qua trong quá khứ. Hệ thống chỉ cho phép xếp lịch cho ngày hiện tại và tương lai!`
+      });
+      return;
+    }
 
     // 0. Kiểm tra không được phân công Chủ cửa hàng (ADMIN) vào ca làm việc
     if (store?.ownerId && String(store.ownerId) === uid) {
@@ -400,6 +428,13 @@ export const ScheduleManagementPage = () => {
 
   // Xóa một nhân viên cụ thể khỏi ca
   const handleRemoveSingleAssignment = (dateStr, shiftId, userId) => {
+    if (dateStr < todayDateStr) {
+      setFeedback({
+        type: 'error',
+        message: 'Không thể chỉnh sửa hoặc xóa ca làm việc của ngày đã qua trong quá khứ.'
+      });
+      return;
+    }
     const sId = getShiftId(shiftId);
     const uId = getUserId(userId);
     setAssignments((prev) =>
@@ -411,6 +446,13 @@ export const ScheduleManagementPage = () => {
 
   // Xóa toàn bộ nhân viên khỏi ca này
   const handleClearShiftAssignments = (dateStr, shiftId) => {
+    if (dateStr < todayDateStr) {
+      setFeedback({
+        type: 'error',
+        message: 'Không thể chỉnh sửa hoặc xóa ca làm việc của ngày đã qua trong quá khứ.'
+      });
+      return;
+    }
     const sId = getShiftId(shiftId);
     setAssignments((prev) =>
       prev.filter(
@@ -422,6 +464,13 @@ export const ScheduleManagementPage = () => {
   // Save Draft Schedule
   const handleSaveDraft = async () => {
     if (!store?._id) return;
+    if (isPastWeek) {
+      setFeedback({
+        type: 'error',
+        message: 'Tuần này đã kết thúc trong quá khứ. Không thể chỉnh sửa hoặc lưu lịch làm việc.'
+      });
+      return;
+    }
     const validation = validateAssignmentsNoOverlap();
     if (validation.hasError) {
       setFeedback({ type: 'error', message: validation.message });
@@ -464,6 +513,13 @@ export const ScheduleManagementPage = () => {
   // Auto Generate Schedule (Draft)
   const handleAutoSchedule = async () => {
     if (!store?._id) return;
+    if (isPastWeek) {
+      setFeedback({
+        type: 'error',
+        message: 'Tuần này đã kết thúc trong quá khứ. Không thể tự động xếp lịch. Vui lòng chọn tuần hiện tại hoặc tương lai.'
+      });
+      return;
+    }
     if (shifts.length === 0) {
       setFeedback({
         type: 'error',
@@ -549,6 +605,14 @@ export const ScheduleManagementPage = () => {
   // Publish Schedule & Send Emails
   const handleConfirmPublish = async () => {
     if (!store?._id) return;
+    if (isPastWeek) {
+      setPublishModalOpen(false);
+      setFeedback({
+        type: 'error',
+        message: 'Tuần này đã kết thúc trong quá khứ. Không thể xuất bản lịch làm việc.'
+      });
+      return;
+    }
     const validation = validateAssignmentsNoOverlap();
     if (validation.hasError) {
       setPublishModalOpen(false);
@@ -741,7 +805,13 @@ export const ScheduleManagementPage = () => {
           </div>
 
           {/* Status Badge */}
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            {isPastWeek && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                Tuần đã qua (Chỉ xem)
+              </span>
+            )}
             {scheduleStatus === 'PUBLISHED' ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -760,10 +830,10 @@ export const ScheduleManagementPage = () => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            disabled={saving || autoGenerating}
+            disabled={saving || autoGenerating || isPastWeek}
             onClick={() => setAutoScheduleModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-300 bg-linear-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 text-sm font-bold transition shadow-xs disabled:opacity-50"
-            title="Tự động phân bổ ca làm tối ưu cho nhân viên và lưu bản nháp"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-300 bg-linear-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 text-sm font-bold transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isPastWeek ? 'Tuần này đã kết thúc trong quá khứ' : 'Tự động phân bổ ca làm tối ưu cho nhân viên và lưu bản nháp'}
           >
             <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
             <span>Tự động xếp lịch</span>
@@ -771,9 +841,10 @@ export const ScheduleManagementPage = () => {
 
           <button
             type="button"
-            disabled={saving || autoGenerating}
+            disabled={saving || autoGenerating || isPastWeek}
             onClick={handleSaveDraft}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-bold bg-white hover:bg-slate-50 transition shadow-xs disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-bold bg-white hover:bg-slate-50 transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isPastWeek ? 'Không thể lưu hoặc sửa đổi lịch của tuần đã qua' : 'Lưu bản nháp'}
           >
             <Save className="w-4 h-4 text-slate-500" />
             <span>{saving ? 'Đang lưu...' : 'Lưu bản nháp'}</span>
@@ -781,8 +852,15 @@ export const ScheduleManagementPage = () => {
 
           <button
             type="button"
-            disabled={saving || autoGenerating}
+            disabled={saving || autoGenerating || isPastWeek}
             onClick={() => {
+              if (isPastWeek) {
+                setFeedback({
+                  type: 'error',
+                  message: 'Tuần này đã kết thúc trong quá khứ. Không thể xuất bản lịch làm việc.'
+                });
+                return;
+              }
               const val = validateAssignmentsNoOverlap();
               if (val.hasError) {
                 setFeedback({ type: 'error', message: val.message });
@@ -790,7 +868,8 @@ export const ScheduleManagementPage = () => {
               }
               setPublishModalOpen(true);
             }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#EA701B] hover:bg-[#D55E0D] text-white text-sm font-bold transition shadow-md shadow-orange-500/20 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#EA701B] hover:bg-[#D55E0D] text-white text-sm font-bold transition shadow-md shadow-orange-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isPastWeek ? 'Tuần này đã kết thúc trong quá khứ' : 'Xuất bản lịch & gửi email'}
           >
             <Send className="w-4 h-4" />
             <span>Xác nhận & gửi email</span>
@@ -900,20 +979,24 @@ export const ScheduleManagementPage = () => {
                     <th
                       key={day.dateStr}
                       className={`p-3 text-center border-r border-orange-100 last:border-r-0 ${
-                        day.isToday ? 'bg-orange-200/60 font-extrabold text-[#EA701B]' : ''
+                        day.isToday ? 'bg-orange-200/60 font-extrabold text-[#EA701B]' : day.isPast ? 'bg-slate-100/70' : ''
                       }`}
                     >
-                      <div className="text-xs uppercase font-bold tracking-tight text-slate-800">
+                      <div className={`text-xs uppercase font-bold tracking-tight ${day.isPast && !day.isToday ? 'text-slate-400' : 'text-slate-800'}`}>
                         {day.dayName}
                       </div>
-                      <div className="text-xs text-slate-500 font-mono mt-0.5 font-medium">
+                      <div className={`text-xs font-mono mt-0.5 font-medium ${day.isPast && !day.isToday ? 'text-slate-400' : 'text-slate-500'}`}>
                         {day.displayDate}
                       </div>
-                      {day.isToday && (
+                      {day.isToday ? (
                         <span className="inline-block px-1.5 py-0.2 text-[10px] bg-[#EA701B] text-white rounded-full mt-0.5">
                           Hôm nay
                         </span>
-                      )}
+                      ) : day.isPast ? (
+                        <span className="inline-block px-1.5 py-0.2 text-[10px] bg-slate-200 text-slate-500 rounded-full mt-0.5 font-medium">
+                          Đã qua
+                        </span>
+                      ) : null}
                     </th>
                   ))}
                 </tr>
@@ -955,14 +1038,24 @@ export const ScheduleManagementPage = () => {
                           className="p-1.5 border-r border-slate-100 last:border-r-0 align-top min-h-24 hover:bg-orange-50/20 transition"
                         >
                           {cellAssignments.length === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenAssignModal(day.dateStr, shift._id)}
-                              className="w-full h-full min-h-[84px] border border-dashed border-slate-200 hover:border-[#EA701B] hover:bg-[#FFF7F0] rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-[#EA701B] transition group p-2"
-                            >
-                              <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                              <span className="text-[11px] font-medium mt-1">+ Phân ca</span>
-                            </button>
+                            day.isPast ? (
+                              <div
+                                title="Không thể xếp lịch cho ngày đã qua trong quá khứ"
+                                className="w-full h-full min-h-[84px] border border-dashed border-slate-200/80 bg-slate-50/60 rounded-xl flex flex-col items-center justify-center text-slate-300 select-none cursor-not-allowed p-2"
+                              >
+                                <Clock className="w-4 h-4 text-slate-300" />
+                                <span className="text-[10px] font-medium text-slate-400 mt-1">Đã qua ngày</span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAssignModal(day.dateStr, shift._id)}
+                                className="w-full h-full min-h-[84px] border border-dashed border-slate-200 hover:border-[#EA701B] hover:bg-[#FFF7F0] rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-[#EA701B] transition group p-2"
+                              >
+                                <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                <span className="text-[11px] font-medium mt-1">+ Phân ca</span>
+                              </button>
+                            )
                           ) : (
                             <div
                               onClick={() => handleOpenAssignModal(day.dateStr, shift._id)}
@@ -1134,9 +1227,16 @@ export const ScheduleManagementPage = () => {
                   <Clock className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-bold text-slate-900 text-sm truncate">
-                    Phân công ca làm việc: {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.name || 'Ca làm việc'}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-900 text-sm truncate">
+                      Phân công ca: {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.name || 'Ca làm việc'}
+                    </h3>
+                    {assignModal.date && assignModal.date < todayDateStr && (
+                      <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 text-[10px] font-bold shrink-0">
+                        Ngày đã qua (Chỉ xem)
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-slate-500 font-medium truncate">
                     {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.startTime} —{' '}
                     {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.endTime} •{' '}
@@ -1158,6 +1258,7 @@ export const ScheduleManagementPage = () => {
               <div>
                 {(() => {
                   const currentShiftId = getShiftId(assignModal.shiftId);
+                  const isModalDatePast = Boolean(assignModal.date && assignModal.date < todayDateStr);
                   const currentCellAssignments = assignments.filter(
                     (a) => a.date === assignModal.date && getShiftId(a.shiftId) === currentShiftId
                   );
@@ -1169,7 +1270,7 @@ export const ScheduleManagementPage = () => {
                           <Users className="w-4 h-4 text-[#EA701B]" />
                           <span>Nhân viên trong ca này ({currentCellAssignments.length} người)</span>
                         </label>
-                        {currentCellAssignments.length > 0 && (
+                        {currentCellAssignments.length > 0 && !isModalDatePast && (
                           <button
                             type="button"
                             onClick={() => handleClearShiftAssignments(assignModal.date, assignModal.shiftId)}
@@ -1182,7 +1283,9 @@ export const ScheduleManagementPage = () => {
 
                       {currentCellAssignments.length === 0 ? (
                         <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 bg-slate-50/50">
-                          Chưa có nhân viên nào trong ca này. Hãy chọn nhân viên bên dưới để thêm vào ca.
+                          {isModalDatePast
+                            ? 'Không có nhân viên nào được xếp trong ca này.'
+                            : 'Chưa có nhân viên nào trong ca này. Hãy chọn nhân viên bên dưới để thêm vào ca.'}
                         </div>
                       ) : (
                         <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
@@ -1223,14 +1326,16 @@ export const ScheduleManagementPage = () => {
                                   </div>
                                 </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveSingleAssignment(a.date, a.shiftId, a.userId)}
-                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0"
-                                  title="Xóa khỏi ca"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {!isModalDatePast && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSingleAssignment(a.date, a.shiftId, a.userId)}
+                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0"
+                                    title="Xóa khỏi ca"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
@@ -1242,86 +1347,95 @@ export const ScheduleManagementPage = () => {
               </div>
 
               {/* SECTION 2: Add New Employee to Shift */}
-              <div className="pt-3 border-t border-slate-100 space-y-2">
-                <label className="block text-xs font-bold text-slate-700">
-                  Thêm nhân viên vào ca này
-                </label>
-                {(() => {
-                  const currentShiftId = getShiftId(assignModal.shiftId);
-                  const currentCellAssignments = assignments.filter(
-                    (a) => a.date === assignModal.date && getShiftId(a.shiftId) === currentShiftId
-                  );
-                  const selectedCandidateId = getUserId(assignModal.selectedUserId);
-                  const selectedConflict = selectedCandidateId
-                    ? getConflictingShift(selectedCandidateId, assignModal.date, currentShiftId)
-                    : null;
-                  const isSelectedAlready = selectedCandidateId
-                    ? currentCellAssignments.some((a) => getUserId(a.userId) === selectedCandidateId)
-                    : false;
+              {assignModal.date && assignModal.date < todayDateStr ? (
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center gap-2.5">
+                  <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>
+                    Ca làm việc này thuộc ngày trong quá khứ (<strong>{assignModal.date}</strong>). Bạn chỉ có thể xem danh sách phân công, không thể thêm hoặc xóa nhân viên.
+                  </span>
+                </div>
+              ) : (
+                <div className="pt-3 border-t border-slate-100 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Thêm nhân viên vào ca này
+                  </label>
+                  {(() => {
+                    const currentShiftId = getShiftId(assignModal.shiftId);
+                    const currentCellAssignments = assignments.filter(
+                      (a) => a.date === assignModal.date && getShiftId(a.shiftId) === currentShiftId
+                    );
+                    const selectedCandidateId = getUserId(assignModal.selectedUserId);
+                    const selectedConflict = selectedCandidateId
+                      ? getConflictingShift(selectedCandidateId, assignModal.date, currentShiftId)
+                      : null;
+                    const isSelectedAlready = selectedCandidateId
+                      ? currentCellAssignments.some((a) => getUserId(a.userId) === selectedCandidateId)
+                      : false;
 
-                  return (
-                    <>
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                        <select
-                          value={assignModal.selectedUserId}
-                          onChange={(e) =>
-                            setAssignModal((prev) => ({ ...prev, selectedUserId: e.target.value }))
-                          }
-                          className="flex-1 min-w-0 w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#EA701B] truncate"
-                        >
-                          <option value="">-- Chọn nhân viên để thêm --</option>
-                          {members.map((m) => {
-                            const uid = getUserId(m.user?._id || m.userId);
-                            const alreadyIn = currentCellAssignments.some((a) => getUserId(a.userId) === uid);
-                            const conflict = getConflictingShift(uid, assignModal.date, currentShiftId);
-
-                            let note = '';
-                            if (alreadyIn) {
-                              note = `[Đã có trong ca này] ${m.user?.name || m.fullName}`;
-                            } else if (conflict) {
-                              note = `[Trùng ca: ${conflict.name} (${conflict.startTime} - ${conflict.endTime})] ${m.user?.name || m.fullName}`;
+                    return (
+                      <>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <select
+                            value={assignModal.selectedUserId}
+                            onChange={(e) =>
+                              setAssignModal((prev) => ({ ...prev, selectedUserId: e.target.value }))
                             }
+                            className="flex-1 min-w-0 w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#EA701B] truncate"
+                          >
+                            <option value="">-- Chọn nhân viên để thêm --</option>
+                            {members.map((m) => {
+                              const uid = getUserId(m.user?._id || m.userId);
+                              const alreadyIn = currentCellAssignments.some((a) => getUserId(a.userId) === uid);
+                              const conflict = getConflictingShift(uid, assignModal.date, currentShiftId);
 
-                            return (
-                              <option
-                                key={uid}
-                                value={uid}
-                                disabled={alreadyIn || !!conflict}
-                                className={alreadyIn || conflict ? 'text-slate-400 bg-slate-50' : ''}
-                              >
-                                {note || `${m.user?.name || m.fullName} (${m.user?.email || m.email}) — ${formatVND(m.hourlyWage)}/h`}
-                              </option>
-                            );
-                          })}
-                        </select>
+                              let note = '';
+                              if (alreadyIn) {
+                                note = `[Đã có trong ca này] ${m.user?.name || m.fullName}`;
+                              } else if (conflict) {
+                                note = `[Trùng ca: ${conflict.name} (${conflict.startTime} - ${conflict.endTime})] ${m.user?.name || m.fullName}`;
+                              }
 
-                        <button
-                          type="button"
-                          disabled={!assignModal.selectedUserId || !!selectedConflict || isSelectedAlready}
-                          onClick={handleAddEmployeeToShift}
-                          className="px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition"
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span>Thêm vào ca</span>
-                        </button>
-                      </div>
+                              return (
+                                <option
+                                  key={uid}
+                                  value={uid}
+                                  disabled={alreadyIn || !!conflict}
+                                  className={alreadyIn || conflict ? 'text-slate-400 bg-slate-50' : ''}
+                                >
+                                  {note || `${m.user?.name || m.fullName} (${m.user?.email || m.email}) — ${formatVND(m.hourlyWage)}/h`}
+                                </option>
+                              );
+                            })}
+                          </select>
 
-                      {/* Conflict alert for selected candidate */}
-                      {selectedConflict && (
-                        <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700 animate-fade-in mt-1">
-                          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold text-red-800">Cảnh báo: Trùng giờ làm việc!</p>
-                            <p className="mt-0.5 text-slate-600">
-                              Nhân viên này đã được phân ca <b>"{selectedConflict.name}" ({selectedConflict.startTime} - {selectedConflict.endTime})</b> vào ngày này. Không thể phân 2 ca cùng khung giờ!
-                            </p>
-                          </div>
+                          <button
+                            type="button"
+                            disabled={!assignModal.selectedUserId || !!selectedConflict || isSelectedAlready}
+                            onClick={handleAddEmployeeToShift}
+                            className="px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Thêm vào ca</span>
+                          </button>
                         </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
+
+                        {/* Conflict alert for selected candidate */}
+                        {selectedConflict && (
+                          <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700 animate-fade-in mt-1">
+                            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold text-red-800">Cảnh báo: Trùng giờ làm việc!</p>
+                              <p className="mt-0.5 text-slate-600">
+                                Nhân viên này đã được phân ca <b>"{selectedConflict.name}" ({selectedConflict.startTime} - {selectedConflict.endTime})</b> vào ngày này. Không thể phân 2 ca cùng khung giờ!
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* Modal Footer */}
               <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
@@ -1380,6 +1494,19 @@ export const ScheduleManagementPage = () => {
                   <li>Lưu dưới dạng <b>Bản nháp (DRAFT)</b> — quản lý có thể xem lại, tinh chỉnh từng ca và xác nhận sau.</li>
                 </ul>
               </div>
+
+              {/* Past week / Past days notice */}
+              {isPastWeek ? (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-800 flex items-center gap-2 animate-fade-in">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>Tuần này đã kết thúc trong quá khứ. Bạn không thể tự động xếp ca cho tuần trong quá khứ.</span>
+                </div>
+              ) : daysOfWeek.some((d) => d.isPast) ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-center gap-2 animate-fade-in">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Tuần này có ngày đã qua. Hệ thống sẽ tự động bỏ qua các ngày đã qua và chỉ xếp ca từ hôm nay ({todayDateStr}) trở đi.</span>
+                </div>
+              ) : null}
 
               {/* Store context stats */}
               <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200/60 text-xs">
@@ -1462,7 +1589,7 @@ export const ScheduleManagementPage = () => {
               </button>
               <button
                 type="button"
-                disabled={autoGenerating || shifts.length === 0 || members.length === 0}
+                disabled={autoGenerating || shifts.length === 0 || members.length === 0 || isPastWeek}
                 onClick={handleAutoSchedule}
                 className="px-5 py-2.5 text-xs font-bold text-white bg-linear-to-r from-amber-500 to-[#EA701B] hover:from-amber-600 hover:to-[#D55E0D] rounded-xl shadow-md shadow-orange-500/20 disabled:opacity-50 flex items-center gap-2 transition"
               >
