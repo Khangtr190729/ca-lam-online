@@ -285,12 +285,26 @@ export const AssignEmployeeModal = ({
                         </div>
                       </div>
 
-                      {/* Display Missed Reason if already marked */}
-                      {isMissed && a.missedReason && (
+                      {/* Display Missed Reason & Evaluator if already marked */}
+                      {isMissed && (
                         <div className="mt-1 px-2.5 py-1.5 bg-rose-100/50 rounded-lg border border-rose-200 text-[11px] text-rose-800 flex items-start gap-1.5">
                           <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="font-semibold">Lý do:</span> {a.missedReason}
+                          <div className="space-y-0.5">
+                            {a.missedReason && (
+                              <div>
+                                <span className="font-semibold">Lý do:</span> {a.missedReason}
+                              </div>
+                            )}
+                            {a.evaluatedBy && (
+                              <div className="text-[10px] text-rose-600 font-medium">
+                                Đánh giá bởi:{' '}
+                                <strong>
+                                  {typeof a.evaluatedBy === 'object'
+                                    ? a.evaluatedBy.fullName || a.evaluatedBy.name
+                                    : 'Quản lý'}
+                                </strong>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}

@@ -706,7 +706,7 @@ export const ScheduleManagementPage = () => {
                 attendanceStatus,
                 missedReason: attendanceStatus === 'MISSED' ? (missedReason || '') : '',
                 evaluatedAt: new Date().toISOString(),
-                evaluatedBy: user?._id,
+                evaluatedBy: user ? { _id: user._id, fullName: user.fullName || user.name } : null,
               };
             }
             return a;

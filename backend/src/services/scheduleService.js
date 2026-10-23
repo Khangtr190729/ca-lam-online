@@ -717,6 +717,12 @@ export const evaluateShiftAttendance = async ({
     const toEmail = targetMember?.email;
     const employeeName = targetMember?.fullName || 'Nhân viên';
 
+    // Lấy thông tin người đánh giá (Chủ cửa hàng hoặc Quản lý)
+    const evaluator = await User.findById(evaluatorId);
+    const isStoreOwner = store.ownerId && String(store.ownerId) === String(evaluatorId);
+    const evaluatorRole = isStoreOwner ? 'Chủ cửa hàng' : 'Quản lý cửa hàng';
+    const evaluatorName = evaluator?.fullName || evaluator?.name || (isStoreOwner ? 'Chủ cửa hàng' : 'Quản lý');
+
     // Tính lương tuần sau cập nhật của nhân viên này
     const empSalaryInfo = salarySummary.find(
       (s) => String(s.userId._id || s.userId) === uIdStr
@@ -728,6 +734,8 @@ export const evaluateShiftAttendance = async ({
         toEmail,
         employeeName,
         storeName: store.name,
+        evaluatorName,
+        evaluatorRole,
         shiftName: shift.name,
         timeRange: `${shift.startTime} - ${shift.endTime}`,
         date: targetAssignment.date,

@@ -125,10 +125,10 @@ export const sendScheduleEmail = async ({
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ [EMAIL SENT] Đã gửi email lịch tuần ${week} đến ${toEmail}: ${info.messageId}`);
+    console.log(` [EMAIL SENT] Đã gửi email lịch tuần ${week} đến ${toEmail}: ${info.messageId}`);
     return { success: true, messageId: info.messageId, to: toEmail };
   } catch (error) {
-    console.error(`❌ [EMAIL ERROR] Lỗi gửi email đến ${toEmail}:`, error.message);
+    console.error(` [EMAIL ERROR] Lỗi gửi email đến ${toEmail}:`, error.message);
     return { success: false, error: error.message, to: toEmail };
   }
 };
@@ -204,6 +204,8 @@ export const sendMissedShiftEmail = async ({
   toEmail,
   employeeName,
   storeName,
+  evaluatorName,
+  evaluatorRole = 'Quản lý cửa hàng',
   shiftName,
   timeRange,
   date,
@@ -218,7 +220,7 @@ export const sendMissedShiftEmail = async ({
 
     if (!transporter) {
       console.log(
-        `[EMAIL SIMULATION] Thông báo trừ ca ${shiftName} (${date}) đến ${toEmail} (${employeeName}) - Trừ ${deductedPay.toLocaleString('vi-VN')} VNĐ. Lý do: ${reason}`
+        `[EMAIL SIMULATION] Thông báo trừ ca ${shiftName} (${date}) bởi ${evaluatorRole} ${evaluatorName} đến ${toEmail} (${employeeName}) - Trừ ${deductedPay.toLocaleString('vi-VN')} VNĐ. Lý do: ${reason}`
       );
       return { success: true, simulated: true, to: toEmail };
     }
@@ -233,12 +235,15 @@ export const sendMissedShiftEmail = async ({
         <div style="padding: 24px;">
           <p style="font-size: 15px; color: #1f2937;">Xin chào <strong>${employeeName}</strong>,</p>
           <p style="color: #4b5563; line-height: 1.6; font-size: 14px;">
-            Quản lý cửa hàng <strong>${storeName}</strong> vừa cập nhật đánh giá ca làm việc của bạn sang trạng thái 
-            <strong style="color: #dc2626; background-color: #fef2f2; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecaca;">Không hoàn thành (Vắng mặt)</strong>.
+            ${evaluatorRole} <strong>${evaluatorName || storeName}</strong> của cửa hàng <strong>${storeName}</strong> vừa cập nhật đánh giá ca làm việc của bạn sang trạng thái 
+            <strong style="color: #dc2626; background-color: #fef2f2; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecaca;">Không hoàn thành tốt ca làm việc</strong>.
           </p>
 
           <div style="margin: 20px 0; padding: 16px; background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px;">
             <h4 style="margin: 0 0 12px 0; color: #991b1b; font-size: 15px;">CHI TIẾT CA LÀM BỊ ĐÁNH GIÁ:</h4>
+            <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
+              <span>• Người đánh giá:</span> <strong>${evaluatorName || 'Quản lý'}</strong> (${evaluatorRole})
+            </div>
             <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
               <span>• Ca làm việc:</span> <strong>${shiftName} (${timeRange})</strong>
             </div>
@@ -262,7 +267,7 @@ export const sendMissedShiftEmail = async ({
           </div>
 
           <p style="margin-top: 24px; font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">
-            Nếu có sự nhầm lẫn hoặc cần giải trình lý do chính đáng, bạn vui lòng liên hệ ngay với Quản lý cửa hàng để được xem xét điều chỉnh lại.<br>
+            Nếu có sự nhầm lẫn hoặc cần giải trình lý do chính đáng, bạn vui lòng liên hệ trực tiếp với ${evaluatorRole} <strong>${evaluatorName}</strong> để được xem xét điều chỉnh lại.<br>
             <em>Thông báo tự động từ hệ thống Ca Làm Online.</em>
           </p>
         </div>
