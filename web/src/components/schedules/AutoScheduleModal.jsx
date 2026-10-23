@@ -67,7 +67,9 @@ export const AutoScheduleModal = ({
           ) : daysOfWeek.some((d) => d.isPast) ? (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-center gap-2 animate-fade-in">
               <Info className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>Tuần này có ngày đã qua. Hệ thống sẽ tự động bỏ qua các ngày đã qua và chỉ xếp ca từ hôm nay ({todayDateStr}) trở đi.</span>
+              <span>
+                Tuần này có ngày hoặc ca đã qua. Hệ thống sẽ tự động bỏ qua các ngày/ca đã qua (ví dụ Thứ Hai hoặc ca sáng đã qua), giữ nguyên người trực cũ và chỉ tự động xếp ca cho các ca sắp tới.
+              </span>
             </div>
           ) : null}
 

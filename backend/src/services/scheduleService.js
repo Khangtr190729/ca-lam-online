@@ -7,13 +7,20 @@ import {
   getTodayDateString,
   isShiftTimePassed,
   checkShiftOverlap,
+  getCurrentVNTime,
+  timeToMinutes,
 } from '../utils/timeScheduleHelpers.js';
 
 /**
  * Service: Xác thực bảo toàn ca đã qua (Immutability Validation)
  * TUYỆT ĐỐI KHÔNG THỂ XÓA, SỬA HOẶC THAY ĐỔI CA ĐÃ QUA
  */
-export const validatePassedShiftImmutability = async (storeId, rawAssignments, existingAssignments = []) => {
+export const validatePassedShiftImmutability = async (
+  storeId,
+  rawAssignments,
+  existingAssignments = [],
+  isPublishedSchedule = false
+) => {
   const shifts = await Shift.find({ storeId });
   const shiftMap = {};
   shifts.forEach((s) => {
@@ -62,20 +69,23 @@ export const validatePassedShiftImmutability = async (storeId, rawAssignments, e
     incomingKeySet.add(key);
   }
 
-  // 1. KIỂM TRA BỊ XÓA: Mọi ca đã qua trong DB bắt buộc phải có mặt trong rawAssignments
-  for (const passed of existingPassedList) {
-    if (!incomingKeySet.has(passed.key)) {
-      const member = memberMap[passed.userId];
-      const empName = member?.userId?.fullName || 'nhân viên';
-      const err = new Error(
-        `Không thể xóa ca làm việc đã kết thúc: Ca "${passed.shiftName}" (${passed.timeRange}) ngày ${passed.date} của nhân viên "${empName}" đã diễn ra. Hệ thống khóa các ca đã qua để bảo toàn giờ làm và tiền lương của nhân viên!`
-      );
-      err.statusCode = 400;
-      throw err;
+  // 1. KIỂM TRA BỊ XÓA: Chỉ áp dụng khi lịch ĐÃ XUẤT BẢN (PUBLISHED)
+  // Nếu là lịch nháp (DRAFT), quản lý có quyền bỏ các ca nháp ở ngày shop nghỉ mà không bị lỗi
+  if (isPublishedSchedule) {
+    for (const passed of existingPassedList) {
+      if (!incomingKeySet.has(passed.key)) {
+        const member = memberMap[passed.userId];
+        const empName = member?.userId?.fullName || 'nhân viên';
+        const err = new Error(
+          `Không thể xóa ca làm việc đã kết thúc của lịch đã xuất bản: Ca "${passed.shiftName}" (${passed.timeRange}) ngày ${passed.date} của nhân viên "${empName}" đã diễn ra. Hệ thống khóa các ca đã qua để bảo toàn giờ làm và tiền lương của nhân viên!`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
     }
   }
 
-  // 2. KIỂM TRA THÊM MỚI HOẶC SỬA: Không được phép thêm mới hay đổi nhân viên vào một ca đã qua
+  // 2. KIỂM TRA THÊM MỚI HOẶC SỬA: Tuyệt đối không được phép thêm mới hay đổi nhân viên vào một ca đã qua
   for (const item of rawAssignments) {
     const sId = extractId(item.shiftId);
     const uId = extractId(item.userId);
@@ -357,35 +367,46 @@ export const generateAutoSchedule = async ({
     year: Number(year),
   });
 
-  // 1. Luôn tự động giữ lại TOÀN BỘ các ca đã qua trong DB
+  const isPublishedSchedule = existingSchedule?.status === 'PUBLISHED';
   const passedKeySet = new Set();
-  if (existingSchedule && Array.isArray(existingSchedule.assignments)) {
-    for (const item of existingSchedule.assignments) {
+
+  // 1. Chỉ tự động giữ lại các ca đã qua NẾU:
+  // - Lịch này ĐÃ ĐƯỢC XUẤT BẢN (PUBLISHED): nhân viên đã làm việc thực tế
+  // - HOẶC người dùng bật tùy chọn "Giữ lại các ca đã xếp thủ công hiện tại" (preserveExisting === true)
+  // Nếu là lịch nháp (DRAFT) và preserveExisting === false: BỎ QUA toàn bộ ngày/ca đã qua, để trống ngày nghỉ / ca đã qua, không xếp và không tính lương!
+  if (isPublishedSchedule || preserveExisting) {
+    const sourceAssignments = isPublishedSchedule
+      ? (existingSchedule?.assignments || [])
+      : (existingAssignments || []);
+
+    for (const item of sourceAssignments) {
       const uId = extractId(item.userId);
       const sId = extractId(item.shiftId);
       const shift = shiftMap[sId];
       const stat = memberStats[uId];
       if (shift && isShiftTimePassed(item.date, shift)) {
         const key = `${item.date}_${sId}_${uId}`;
-        passedKeySet.add(key);
-        if (stat) {
-          if (!stat.shiftsByDate[item.date]) stat.shiftsByDate[item.date] = [];
-          stat.shiftsByDate[item.date].push(shift);
-          stat.shiftCount += 1;
-          stat.totalHours += shift.durationHours || 4;
+        if (!passedKeySet.has(key)) {
+          passedKeySet.add(key);
+          if (stat) {
+            if (!stat.shiftsByDate[item.date]) stat.shiftsByDate[item.date] = [];
+            stat.shiftsByDate[item.date].push(shift);
+            stat.shiftCount += 1;
+            stat.totalHours += shift.durationHours || 4;
+          }
+          workingAssignments.push({
+            date: item.date,
+            dayOfWeek: item.dayOfWeek,
+            shiftId: shift._id,
+            userId: uId,
+            hourlyWage: item.hourlyWage || (stat ? stat.hourlyWage : 20000),
+          });
         }
-        workingAssignments.push({
-          date: item.date,
-          dayOfWeek: item.dayOfWeek,
-          shiftId: shift._id,
-          userId: uId,
-          hourlyWage: item.hourlyWage || (stat ? stat.hourlyWage : 20000),
-        });
       }
     }
   }
 
-  // 2. Nếu chọn giữ lại các ca đã xếp thủ công
+  // 2. Nếu chọn giữ lại các ca đã xếp thủ công (chỉ áp dụng cho ca chưa qua)
   if (preserveExisting && Array.isArray(existingAssignments) && existingAssignments.length > 0) {
     for (const item of existingAssignments) {
       const uId = extractId(item.userId);
@@ -395,7 +416,7 @@ export const generateAutoSchedule = async ({
       const key = `${item.date}_${sId}_${uId}`;
       if (passedKeySet.has(key)) continue;
 
-      if (shift && stat && item.date) {
+      if (shift && stat && item.date && !isShiftTimePassed(item.date, shift)) {
         if (!stat.shiftsByDate[item.date]) stat.shiftsByDate[item.date] = [];
         stat.shiftsByDate[item.date].push(shift);
         stat.shiftCount += 1;
@@ -414,13 +435,23 @@ export const generateAutoSchedule = async ({
   const targetStaffPerShift = Math.max(1, parseInt(staffPerShift, 10) || 1);
   const maxPerDay = Math.max(1, parseInt(maxShiftsPerDay, 10) || 1);
   const todayStr = getTodayDateString();
+  const currentVNTime = getCurrentVNTime();
+  const currentVNMins = timeToMinutes(currentVNTime);
 
   // 3. Thuật toán phân bổ ca tối ưu
   for (const day of weekDays) {
+    // Bỏ qua các ngày đã qua trong quá khứ (ví dụ: đã qua Thứ Hai thì bỏ qua Thứ Hai)
     if (day.date < todayStr) continue;
 
     for (const shift of shifts) {
+      // Bỏ qua các ca đã qua trong quá khứ
       if (isShiftTimePassed(day.date, shift)) continue;
+
+      // Nếu là hôm nay: bỏ qua ca nếu ca đã bắt đầu hoặc kết thúc (ví dụ: qua ca sáng Thứ Ba thì bỏ qua ca sáng)
+      if (day.date === todayStr) {
+        const startMins = timeToMinutes(shift.startTime);
+        if (currentVNMins >= startMins) continue;
+      }
 
       const sId = shift._id.toString();
       const currentAssigned = workingAssignments.filter(
@@ -500,7 +531,25 @@ export const generateAutoSchedule = async ({
   }
 
   // Xác thực bảo toàn ca đã qua & tính toán lại lương chi tiết
-  await validatePassedShiftImmutability(storeId, workingAssignments, existingSchedule?.assignments || []);
+  const baselineAssignments = [...(existingSchedule?.assignments || [])];
+  if (Array.isArray(existingAssignments)) {
+    const baselineKeys = new Set(
+      baselineAssignments.map((a) => `${a.date}_${extractId(a.shiftId)}_${extractId(a.userId)}`)
+    );
+    for (const ea of existingAssignments) {
+      const key = `${ea.date}_${extractId(ea.shiftId)}_${extractId(ea.userId)}`;
+      if (!baselineKeys.has(key)) {
+        baselineAssignments.push(ea);
+      }
+    }
+  }
+
+  await validatePassedShiftImmutability(
+    storeId,
+    workingAssignments,
+    baselineAssignments,
+    isPublishedSchedule
+  );
 
   const { processedAssignments, salarySummary } = await processAssignmentsAndSalary(
     storeId,

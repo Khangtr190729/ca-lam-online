@@ -125,7 +125,12 @@ export const saveDraftSchedule = async (req, res) => {
     });
 
     // Xác thực bảo toàn ca đã qua
-    await validatePassedShiftImmutability(storeId, assignments, schedule?.assignments || []);
+    await validatePassedShiftImmutability(
+      storeId,
+      assignments,
+      schedule?.assignments || [],
+      schedule?.status === 'PUBLISHED'
+    );
 
     const { processedAssignments, salarySummary } = await processAssignmentsAndSalary(
       storeId,
@@ -221,7 +226,12 @@ export const publishSchedule = async (req, res) => {
     let processedData;
 
     if (Array.isArray(assignments)) {
-      await validatePassedShiftImmutability(storeId, assignments, schedule?.assignments || []);
+      await validatePassedShiftImmutability(
+        storeId,
+        assignments,
+        schedule?.assignments || [],
+        schedule?.status === 'PUBLISHED'
+      );
       processedData = await processAssignmentsAndSalary(storeId, assignments);
 
       if (!schedule) {

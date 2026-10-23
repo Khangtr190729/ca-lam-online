@@ -74,6 +74,7 @@ export const getStoreMembers = async (req, res) => {
           employmentType: m.employmentType,
           hourlyWage: m.hourlyWage, // Mức lương theo giờ (VNĐ/h)
           joinedAt: m.joinedAt,
+          status: m.status,
           isOwner,
         };
       }),

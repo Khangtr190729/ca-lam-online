@@ -139,10 +139,10 @@ export const ScheduleManagementPage = () => {
       if (membersRes.success) {
         const rawMembers = membersRes.members || [];
         const activeOnly = rawMembers.filter((m) => {
-          if (m.status !== 'ACTIVE') return false;
-          if (m.roleInStore === 'ADMIN') return false;
+          if (m.status && m.status !== 'ACTIVE') return false;
+          if (m.roleInStore === 'ADMIN' || m.isOwner) return false;
           const uId = getUserId(m.user?._id || m.userId);
-          const isOwner = store?.ownerId && String(store.ownerId) === uId;
+          const isOwner = m.isOwner || (store?.ownerId && String(store.ownerId) === uId);
           return !isOwner;
         });
         setMembers(activeOnly);
@@ -555,17 +555,16 @@ export const ScheduleManagementPage = () => {
         staffPerShift: Number(autoConfig.staffPerShift) || 1,
         maxShiftsPerDay: Number(autoConfig.maxShiftsPerDay) || 1,
         preserveExisting: Boolean(autoConfig.preserveExisting),
-        existingAssignments: autoConfig.preserveExisting
-          ? assignments.map((a) => {
-              const day = daysOfWeek.find((d) => d.dateStr === a.date);
-              return {
-                date: a.date,
-                dayOfWeek: day?.dayName || 'Thứ Hai',
-                shiftId: getShiftId(a.shiftId),
-                userId: getUserId(a.userId),
-              };
-            })
-          : [],
+        existingAssignments: assignments.map((a) => {
+          const day = daysOfWeek.find((d) => d.dateStr === a.date);
+          return {
+            date: a.date,
+            dayOfWeek: day?.dayName || 'Thứ Hai',
+            shiftId: getShiftId(a.shiftId),
+            userId: getUserId(a.userId),
+            hourlyWage: a.hourlyWage,
+          };
+        }),
       };
 
       const res = await scheduleApi.autoGenerate(store._id, payload);
