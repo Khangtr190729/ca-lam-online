@@ -54,14 +54,15 @@ export const register = async (req, res) => {
       });
     }
 
-    // 4. Kiểm tra giới tính
-    const allowedGenders = ['Nam', 'Nữ', 'Khác'];
-    if (!allowedGenders.includes(gender)) {
+    // 4. Kiểm tra giới tính (hỗ trợ cả có dấu và không dấu)
+    const validGenders = { Nam: 'Nam', Nữ: 'Nữ', Nu: 'Nữ', Khác: 'Khác', Khac: 'Khác' };
+    if (!validGenders[gender]) {
       return res.status(400).json({
         success: false,
         message: 'Giới tính phải là một trong: Nam, Nữ, Khác.',
       });
     }
+    const normalizedGender = validGenders[gender];
 
     // 5. Kiểm tra độ dài mật khẩu
     if (password.length < 6) {
@@ -89,7 +90,7 @@ export const register = async (req, res) => {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       fullName: fullName.trim(),
-      gender,
+      gender: normalizedGender,
       age: parsedAge,
       systemRole,
     });
