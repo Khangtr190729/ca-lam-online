@@ -98,7 +98,14 @@ export const ScheduleManagementPage = () => {
       if (shiftsRes.success) setShifts(shiftsRes.shifts || shiftsRes.data || []);
       if (membersRes.success) {
         const rawMembers = membersRes.members || membersRes.data || [];
-        const normalized = rawMembers.map((m) => {
+        // Lọc bỏ hoàn toàn Chủ cửa hàng (ADMIN) - Chỉ cho phép xếp ca cho Quản lý và Nhân viên
+        const assignable = rawMembers.filter((m) => {
+          const uId = String(m.userId?._id || m.userId || m.user?._id || '');
+          const isStoreOwner = m.isOwner || m.roleInStore === 'ADMIN' || (store?.ownerId && String(store.ownerId) === uId);
+          return !isStoreOwner;
+        });
+
+        const normalized = assignable.map((m) => {
           const userObj = typeof m.userId === 'object' && m.userId !== null ? m.userId : (m.user || {});
           const actualUserId = String(userObj._id || (typeof m.userId === 'string' ? m.userId : (m.user?._id || m._id)));
           const actualName = userObj.fullName || m.fullName || userObj.name || 'Nhân viên';
@@ -134,7 +141,12 @@ export const ScheduleManagementPage = () => {
         const sched = res.schedule || res;
         setScheduleStatus(sched.status || 'DRAFT');
         const rawAssignments = sched.assignments || res.assignments || [];
-        const formatted = rawAssignments.map((a) => {
+        const validAssignments = rawAssignments.filter((a) => {
+          const uId = getUserId(a.userId);
+          const isOwner = store?.ownerId && String(store.ownerId) === uId;
+          return !isOwner;
+        });
+        const formatted = validAssignments.map((a) => {
           const sId = getShiftId(a.shiftId);
           const uId = getUserId(a.userId);
           const uName =
@@ -335,6 +347,15 @@ export const ScheduleManagementPage = () => {
     if (!assignModal.selectedUserId || !assignModal.date || !assignModal.shiftId) return;
     const uid = getUserId(assignModal.selectedUserId);
     const sid = getShiftId(assignModal.shiftId);
+
+    // 0. Kiểm tra không được phân công Chủ cửa hàng (ADMIN) vào ca làm việc
+    if (store?.ownerId && String(store.ownerId) === uid) {
+      setFeedback({
+        type: 'error',
+        message: 'Chủ cửa hàng (ADMIN) không được phân công vào ca làm việc.'
+      });
+      return;
+    }
 
     // 1. Kiểm tra nhân viên này đã có trong ca này chưa
     const alreadyIn = assignments.some(

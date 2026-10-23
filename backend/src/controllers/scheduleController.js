@@ -69,6 +69,8 @@ const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
     shiftMap[s._id.toString()] = s;
   });
 
+  const store = await Store.findById(storeId);
+
   // 2. Lấy toàn bộ thành viên của quán để map mức lương theo giờ
   const members = await StoreMember.find({ storeId, status: 'ACTIVE' }).populate(
     'userId',
@@ -97,6 +99,17 @@ const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
     const shift = shiftMap[sId];
     const member = memberMap[uId];
     if (!shift || !member) continue;
+
+    // 0. Không cho phép xếp Chủ cửa hàng (ADMIN) vào ca làm việc
+    const isOwner = (store && store.ownerId.toString() === uId) || member.roleInStore === 'ADMIN';
+    if (isOwner) {
+      const memberName = member.userId ? (member.userId.fullName || member.userId.name) : 'Chủ cửa hàng';
+      const err = new Error(
+        `Lỗi phân công: "${memberName}" là Chủ cửa hàng (ADMIN). Chủ cửa hàng không thể được phân công vào ca làm việc!`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
 
     const key = `${item.date}_${uId}`;
     if (!userDateShifts[key]) {
@@ -612,17 +625,23 @@ export const autoGenerateSchedule = async (req, res) => {
       });
     }
 
-    // 2. Lấy danh sách nhân viên đang hoạt động (ACTIVE)
+    // 2. Lấy danh sách nhân viên đang hoạt động (ACTIVE) - Loại trừ Chủ cửa hàng (ADMIN)
     const activeMembers = await StoreMember.find({ storeId, status: 'ACTIVE' }).populate(
       'userId',
       'fullName email systemRole'
     );
-    const validMembers = activeMembers.filter((m) => m.userId && m.userId._id);
+    const validMembers = activeMembers.filter(
+      (m) =>
+        m.userId &&
+        m.userId._id &&
+        m.roleInStore !== 'ADMIN' &&
+        access.store.ownerId.toString() !== m.userId._id.toString()
+    );
 
     if (validMembers.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Cửa hàng chưa có nhân viên nào đang hoạt động. Vui lòng thêm nhân viên trước khi tự động chia ca.',
+        message: 'Cửa hàng chưa có nhân viên hoặc quản lý nào để chia ca làm việc. Vui lòng thêm nhân viên trước khi tự động chia ca.',
       });
     }
 
