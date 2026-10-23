@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Store from '../models/Store.js';
 import StoreMember from '../models/StoreMember.js';
 import Shift from '../models/Shift.js';
+import Schedule from '../models/Schedule.js';
 
 /**
  * Hàm kiểm tra quyền hạn của người gọi trong cửa hàng
@@ -304,13 +305,27 @@ export const deleteShift = async (req, res) => {
       });
     }
 
-    const shift = await Shift.findOneAndDelete({ _id: shiftId, storeId });
+    const shift = await Shift.findOne({ _id: shiftId, storeId });
     if (!shift) {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy ca làm việc để xóa.',
       });
     }
+
+    // Bảo toàn dữ liệu giờ làm & tiền lương: Không cho phép xóa ca đã từng được xếp lịch
+    const isUsedInSchedule = await Schedule.findOne({
+      storeId,
+      'assignments.shiftId': shiftId,
+    });
+    if (isUsedInSchedule) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể xóa ca "${shift.name}" vì ca này đã có nhân viên được xếp lịch làm việc. Xóa mẫu ca sẽ làm mất lịch sử giờ làm và tiền lương của nhân viên!`,
+      });
+    }
+
+    await Shift.deleteOne({ _id: shiftId, storeId });
 
     return res.status(200).json({
       success: true,

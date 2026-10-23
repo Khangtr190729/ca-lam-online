@@ -18,7 +18,8 @@ import {
   FileCheck,
   Sparkles,
   Users,
-  Store as StoreIcon
+  Store as StoreIcon,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { scheduleApi, shiftApi, memberApi, storeApi } from '../services/api';
@@ -48,6 +49,47 @@ export const getShiftId = (shiftOrId) => {
     return String(shiftOrId._id || shiftOrId.id || shiftOrId.shiftId || '');
   }
   return String(shiftOrId);
+};
+
+// Chuyển đổi định dạng giờ "HH:mm" sang số phút
+export const timeToMinutes = (timeStr) => {
+  if (!timeStr || typeof timeStr !== 'string') return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+// Lấy giờ hiện tại theo định dạng HH:mm chuẩn múi giờ Việt Nam
+export const getCurrentVNTime = () => {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date());
+};
+
+// Kiểm tra ca làm việc đã kết thúc/đã qua hay chưa (kể cả ca sáng hôm nay đã làm rồi)
+export const isShiftPassedOrCompleted = (dateStr, shift) => {
+  if (!dateStr || !shift) return false;
+  const todayStr = formatDateToISO(new Date());
+
+  if (dateStr < todayStr) return true;
+  if (dateStr > todayStr) return false;
+
+  // Nếu là ngày hôm nay: so sánh giờ hiện tại với giờ kết thúc của ca
+  const currentMinutes = timeToMinutes(getCurrentVNTime());
+  const startMinutes = timeToMinutes(shift.startTime);
+  let endMinutes = timeToMinutes(shift.endTime);
+
+  if (endMinutes <= startMinutes) {
+    // Ca qua đêm của ngày hôm nay (VD: 22:00 -> 06:00):
+    // Nếu hiện tại đã từ 22:00 trở đi thì ca tối nay đã bắt đầu
+    return currentMinutes >= startMinutes;
+  }
+
+  // Ca trong ngày thông thường (VD: 08:00 -> 12:00):
+  // Ca đã kết thúc khi giờ hiện tại >= giờ kết thúc của ca
+  return currentMinutes >= endMinutes;
 };
 
 export const ScheduleManagementPage = () => {
@@ -340,15 +382,18 @@ export const ScheduleManagementPage = () => {
   // Mở modal quản lý danh sách nhân viên trong ca làm việc
   const handleOpenAssignModal = (dateStr, shiftId) => {
     const currentShiftId = getShiftId(shiftId);
+    const targetShift = shifts.find((s) => getShiftId(s._id) === currentShiftId);
     const currentCellAssignments = assignments.filter(
       (a) => a.date === dateStr && getShiftId(a.shiftId) === currentShiftId
     );
 
-    // Nếu ngày trong quá khứ và ô trống chưa xếp ai, không cho phép mở phân ca
-    if (dateStr < todayDateStr && currentCellAssignments.length === 0) {
+    const isPassed = isShiftPassedOrCompleted(dateStr, targetShift);
+
+    // Nếu ca đã kết thúc/đã qua và ô trống chưa xếp ai, không cho phép mở phân ca
+    if (isPassed && currentCellAssignments.length === 0) {
       setFeedback({
         type: 'error',
-        message: `Ngày ${dateStr} đã qua trong quá khứ. Hệ thống chỉ cho phép xếp lịch cho ngày hiện tại và tương lai!`
+        message: `Ca làm việc "${targetShift?.name || 'Ca làm'}" ngày ${dateStr} đã kết thúc. Hệ thống không cho phép xếp lịch cho các ca đã qua trong quá khứ!`
       });
       return;
     }
@@ -366,12 +411,13 @@ export const ScheduleManagementPage = () => {
     if (!assignModal.selectedUserId || !assignModal.date || !assignModal.shiftId) return;
     const uid = getUserId(assignModal.selectedUserId);
     const sid = getShiftId(assignModal.shiftId);
+    const targetShift = shifts.find((s) => getShiftId(s._id) === sid);
 
-    // Không cho phép thêm ca vào ngày quá khứ
-    if (assignModal.date < todayDateStr) {
+    // Tuyệt đối không cho phép thêm ca đã kết thúc/đã qua (kể cả ca sáng hôm nay đã làm rồi)
+    if (isShiftPassedOrCompleted(assignModal.date, targetShift)) {
       setFeedback({
         type: 'error',
-        message: `Ngày ${assignModal.date} đã qua trong quá khứ. Hệ thống chỉ cho phép xếp lịch cho ngày hiện tại và tương lai!`
+        message: `Ca làm việc "${targetShift?.name || 'Ca làm'}" ngày ${assignModal.date} đã kết thúc. Hệ thống đã khóa ca để bảo toàn giờ làm và tiền lương của nhân viên!`
       });
       return;
     }
@@ -410,7 +456,6 @@ export const ScheduleManagementPage = () => {
     }
 
     const selectedMember = members.find((m) => getUserId(m.user?._id || m.userId) === uid);
-    const selectedShift = shifts.find((s) => getShiftId(s._id) === sid);
     const day = daysOfWeek.find((d) => d.dateStr === assignModal.date);
 
     const newAssignment = {
@@ -419,7 +464,7 @@ export const ScheduleManagementPage = () => {
       shiftId: sid,
       userId: uid,
       userObj: selectedMember?.user || { _id: uid, name: 'Nhân viên' },
-      shiftObj: selectedShift
+      shiftObj: targetShift
     };
 
     setAssignments((prev) => [...prev, newAssignment]);
@@ -428,14 +473,18 @@ export const ScheduleManagementPage = () => {
 
   // Xóa một nhân viên cụ thể khỏi ca
   const handleRemoveSingleAssignment = (dateStr, shiftId, userId) => {
-    if (dateStr < todayDateStr) {
+    const sId = getShiftId(shiftId);
+    const targetShift = shifts.find((s) => getShiftId(s._id) === sId);
+
+    // Không cho phép xóa ca đã kết thúc/đã qua (bảo toàn quyền lợi và lương nhân viên)
+    if (isShiftPassedOrCompleted(dateStr, targetShift)) {
       setFeedback({
         type: 'error',
-        message: 'Không thể chỉnh sửa hoặc xóa ca làm việc của ngày đã qua trong quá khứ.'
+        message: `Ca làm việc "${targetShift?.name || 'Ca làm'}" ngày ${dateStr} đã kết thúc. Hệ thống đã khóa ca để bảo toàn giờ làm và tiền lương của nhân viên, không thể xóa!`
       });
       return;
     }
-    const sId = getShiftId(shiftId);
+
     const uId = getUserId(userId);
     setAssignments((prev) =>
       prev.filter(
@@ -446,14 +495,18 @@ export const ScheduleManagementPage = () => {
 
   // Xóa toàn bộ nhân viên khỏi ca này
   const handleClearShiftAssignments = (dateStr, shiftId) => {
-    if (dateStr < todayDateStr) {
+    const sId = getShiftId(shiftId);
+    const targetShift = shifts.find((s) => getShiftId(s._id) === sId);
+
+    // Không cho phép xóa ca đã kết thúc/đã qua (bảo toàn quyền lợi và lương nhân viên)
+    if (isShiftPassedOrCompleted(dateStr, targetShift)) {
       setFeedback({
         type: 'error',
-        message: 'Không thể chỉnh sửa hoặc xóa ca làm việc của ngày đã qua trong quá khứ.'
+        message: `Ca làm việc "${targetShift?.name || 'Ca làm'}" ngày ${dateStr} đã kết thúc. Hệ thống đã khóa ca để bảo toàn giờ làm và tiền lương của nhân viên, không thể xóa!`
       });
       return;
     }
-    const sId = getShiftId(shiftId);
+
     setAssignments((prev) =>
       prev.filter(
         (a) => !(a.date === dateStr && getShiftId(a.shiftId) === sId)
@@ -1031,6 +1084,7 @@ export const ScheduleManagementPage = () => {
                         (a) => a.date === day.dateStr && getShiftId(a.shiftId) === currentShiftId
                       );
                       const hasAnyConflict = cellAssignments.some((a) => !!getAssignmentConflict(a));
+                      const isPassed = isShiftPassedOrCompleted(day.dateStr, shift);
 
                       return (
                         <td
@@ -1038,13 +1092,13 @@ export const ScheduleManagementPage = () => {
                           className="p-1.5 border-r border-slate-100 last:border-r-0 align-top min-h-24 hover:bg-orange-50/20 transition"
                         >
                           {cellAssignments.length === 0 ? (
-                            day.isPast ? (
+                            isPassed ? (
                               <div
-                                title="Không thể xếp lịch cho ngày đã qua trong quá khứ"
+                                title="Ca làm việc này đã kết thúc trong quá khứ"
                                 className="w-full h-full min-h-[84px] border border-dashed border-slate-200/80 bg-slate-50/60 rounded-xl flex flex-col items-center justify-center text-slate-300 select-none cursor-not-allowed p-2"
                               >
                                 <Clock className="w-4 h-4 text-slate-300" />
-                                <span className="text-[10px] font-medium text-slate-400 mt-1">Đã qua ngày</span>
+                                <span className="text-[10px] font-medium text-slate-400 mt-1">Đã kết thúc</span>
                               </div>
                             ) : (
                               <button
@@ -1062,21 +1116,24 @@ export const ScheduleManagementPage = () => {
                               className={`group relative w-full h-full min-h-[84px] rounded-xl p-2 flex flex-col justify-between cursor-pointer transition shadow-xs ${
                                 hasAnyConflict
                                   ? 'bg-red-50/90 hover:bg-red-100/90 border-2 border-red-400 ring-1 ring-red-400/50'
+                                  : isPassed
+                                  ? 'bg-slate-50/90 hover:bg-slate-100/90 border border-slate-200 text-slate-600'
                                   : 'bg-[#FFF8F2] hover:bg-[#FFF0E5] border border-orange-200/90'
                               }`}
                             >
                               <div>
                                 <div className="flex items-center justify-between gap-1 mb-1.5">
                                   <span
-                                    className={`text-[10px] font-bold uppercase tracking-wider ${
-                                      hasAnyConflict ? 'text-red-700' : 'text-[#EA701B]'
+                                    className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                      hasAnyConflict ? 'text-red-700' : isPassed ? 'text-slate-500' : 'text-[#EA701B]'
                                     }`}
                                   >
-                                    {cellAssignments.length} nhân viên
+                                    {isPassed && <Lock className="w-3 h-3 text-slate-400 shrink-0" />}
+                                    <span>{cellAssignments.length} nhân viên</span>
                                   </span>
                                   <span
                                     className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold text-white ${
-                                      hasAnyConflict ? 'bg-red-500' : 'bg-[#EA701B]'
+                                      hasAnyConflict ? 'bg-red-500' : isPassed ? 'bg-slate-400' : 'bg-[#EA701B]'
                                     }`}
                                   >
                                     {cellAssignments.length}
@@ -1097,13 +1154,15 @@ export const ScheduleManagementPage = () => {
                                         className={`flex items-center justify-between gap-1 px-1.5 py-1 rounded-lg border text-xs transition ${
                                           conflictShift
                                             ? 'bg-red-100/80 border-red-300 text-red-900 font-bold'
+                                            : isPassed
+                                            ? 'bg-white border-slate-200 text-slate-700'
                                             : 'bg-white border-orange-100 text-slate-800 hover:border-orange-200'
                                         }`}
                                       >
                                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                           <div
                                             className={`w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center shrink-0 ${
-                                              conflictShift ? 'bg-red-600' : 'bg-[#EA701B]'
+                                              conflictShift ? 'bg-red-600' : isPassed ? 'bg-slate-500' : 'bg-[#EA701B]'
                                             }`}
                                           >
                                             {assignedUser.name ? assignedUser.name.charAt(0).toUpperCase() : 'U'}
@@ -1127,14 +1186,21 @@ export const ScheduleManagementPage = () => {
                                 </div>
                               </div>
 
-                              <div className="mt-2 pt-1 border-t border-orange-100/80 flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                              <div className="mt-2 pt-1 border-t border-slate-200/70 flex items-center justify-between text-[10px] text-slate-500 font-medium">
                                 <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-[#EA701B]" />
+                                  <Clock className="w-3 h-3 text-slate-400" />
                                   <span>{shift.startTime} - {shift.endTime}</span>
                                 </span>
-                                <span className="text-[#EA701B] font-bold group-hover:underline">
-                                  + Thêm
-                                </span>
+                                {isPassed ? (
+                                  <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded text-[9px] flex items-center gap-0.5 border border-emerald-200">
+                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                                    Đã xong
+                                  </span>
+                                ) : (
+                                  <span className="text-[#EA701B] font-bold group-hover:underline">
+                                    + Thêm
+                                  </span>
+                                )}
                               </div>
                             </div>
                           )}
@@ -1217,240 +1283,236 @@ export const ScheduleManagementPage = () => {
       </div>
 
       {/* MODAL: Manage Shift Roster / Multi-Employee Assignment */}
-      {assignModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden my-auto">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-[#FFF0E5] border-b border-orange-100 flex items-center justify-between">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-orange-100 text-[#EA701B] flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-900 text-sm truncate">
-                      Phân công ca: {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.name || 'Ca làm việc'}
-                    </h3>
-                    {assignModal.date && assignModal.date < todayDateStr && (
-                      <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 text-[10px] font-bold shrink-0">
-                        Ngày đã qua (Chỉ xem)
-                      </span>
-                    )}
+      {assignModal.isOpen && (() => {
+        const currentShiftId = getShiftId(assignModal.shiftId);
+        const targetShift = shifts.find((s) => getShiftId(s._id) === currentShiftId);
+        const isShiftPassed = isShiftPassedOrCompleted(assignModal.date, targetShift);
+        const currentCellAssignments = assignments.filter(
+          (a) => a.date === assignModal.date && getShiftId(a.shiftId) === currentShiftId
+        );
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden my-auto">
+              {/* Modal Header */}
+              <div className="px-6 py-4 bg-[#FFF0E5] border-b border-orange-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-orange-100 text-[#EA701B] flex items-center justify-center shrink-0">
+                    <Clock className="w-4 h-4" />
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium truncate">
-                    {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.startTime} —{' '}
-                    {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.endTime} •{' '}
-                    {daysOfWeek.find((d) => d.dateStr === assignModal.date)?.fullDisplay || assignModal.date}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAssignModal({ isOpen: false, date: '', shiftId: '', selectedUserId: '' })}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0 ml-2"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* SECTION 1: Current Assigned Employees */}
-              <div>
-                {(() => {
-                  const currentShiftId = getShiftId(assignModal.shiftId);
-                  const isModalDatePast = Boolean(assignModal.date && assignModal.date < todayDateStr);
-                  const currentCellAssignments = assignments.filter(
-                    (a) => a.date === assignModal.date && getShiftId(a.shiftId) === currentShiftId
-                  );
-
-                  return (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                          <Users className="w-4 h-4 text-[#EA701B]" />
-                          <span>Nhân viên trong ca này ({currentCellAssignments.length} người)</span>
-                        </label>
-                        {currentCellAssignments.length > 0 && !isModalDatePast && (
-                          <button
-                            type="button"
-                            onClick={() => handleClearShiftAssignments(assignModal.date, assignModal.shiftId)}
-                            className="text-[11px] text-red-600 hover:underline font-semibold"
-                          >
-                            Xóa tất cả
-                          </button>
-                        )}
-                      </div>
-
-                      {currentCellAssignments.length === 0 ? (
-                        <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 bg-slate-50/50">
-                          {isModalDatePast
-                            ? 'Không có nhân viên nào được xếp trong ca này.'
-                            : 'Chưa có nhân viên nào trong ca này. Hãy chọn nhân viên bên dưới để thêm vào ca.'}
-                        </div>
-                      ) : (
-                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                          {currentCellAssignments.map((a, idx) => {
-                            const aUserId = getUserId(a.userId);
-                            const member = members.find((m) => getUserId(m.user?._id || m.userId) === aUserId);
-                            const name = member?.user?.name || member?.fullName || a.userObj?.name || 'Nhân viên';
-                            const email = member?.user?.email || member?.email;
-                            const wage = member?.hourlyWage || 20000;
-                            const conflictShift = getAssignmentConflict(a);
-
-                            return (
-                              <div
-                                key={`${aUserId}_${idx}`}
-                                className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
-                                  conflictShift ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200/80'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <div
-                                    className={`w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 ${
-                                      conflictShift ? 'bg-red-500' : 'bg-[#EA701B]'
-                                    }`}
-                                  >
-                                    {name.charAt(0).toUpperCase()}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-xs font-bold text-slate-800 truncate">{name}</p>
-                                    <p className="text-[11px] text-slate-500 font-mono">
-                                      {formatVND(wage)}/h {email ? `• ${email}` : ''}
-                                    </p>
-                                    {conflictShift && (
-                                      <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-0.5">
-                                        <AlertTriangle className="w-3 h-3 shrink-0" />
-                                        Trùng giờ với ca "{conflictShift.name}" ({conflictShift.startTime} - {conflictShift.endTime})
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {!isModalDatePast && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveSingleAssignment(a.date, a.shiftId, a.userId)}
-                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0"
-                                    title="Xóa khỏi ca"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm truncate">
+                        Phân công ca: {targetShift?.name || 'Ca làm việc'}
+                      </h3>
+                      {isShiftPassed && (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 text-[10px] font-bold shrink-0 flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-slate-500" />
+                          Đã kết thúc (Đã khóa ca)
+                        </span>
                       )}
                     </div>
-                  );
-                })()}
-              </div>
-
-              {/* SECTION 2: Add New Employee to Shift */}
-              {assignModal.date && assignModal.date < todayDateStr ? (
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center gap-2.5">
-                  <Clock className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>
-                    Ca làm việc này thuộc ngày trong quá khứ (<strong>{assignModal.date}</strong>). Bạn chỉ có thể xem danh sách phân công, không thể thêm hoặc xóa nhân viên.
-                  </span>
+                    <p className="text-[11px] text-slate-500 font-medium truncate">
+                      {targetShift?.startTime} — {targetShift?.endTime} •{' '}
+                      {daysOfWeek.find((d) => d.dateStr === assignModal.date)?.fullDisplay || assignModal.date}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Thêm nhân viên vào ca này
-                  </label>
-                  {(() => {
-                    const currentShiftId = getShiftId(assignModal.shiftId);
-                    const currentCellAssignments = assignments.filter(
-                      (a) => a.date === assignModal.date && getShiftId(a.shiftId) === currentShiftId
-                    );
-                    const selectedCandidateId = getUserId(assignModal.selectedUserId);
-                    const selectedConflict = selectedCandidateId
-                      ? getConflictingShift(selectedCandidateId, assignModal.date, currentShiftId)
-                      : null;
-                    const isSelectedAlready = selectedCandidateId
-                      ? currentCellAssignments.some((a) => getUserId(a.userId) === selectedCandidateId)
-                      : false;
-
-                    return (
-                      <>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                          <select
-                            value={assignModal.selectedUserId}
-                            onChange={(e) =>
-                              setAssignModal((prev) => ({ ...prev, selectedUserId: e.target.value }))
-                            }
-                            className="flex-1 min-w-0 w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#EA701B] truncate"
-                          >
-                            <option value="">-- Chọn nhân viên để thêm --</option>
-                            {members.map((m) => {
-                              const uid = getUserId(m.user?._id || m.userId);
-                              const alreadyIn = currentCellAssignments.some((a) => getUserId(a.userId) === uid);
-                              const conflict = getConflictingShift(uid, assignModal.date, currentShiftId);
-
-                              let note = '';
-                              if (alreadyIn) {
-                                note = `[Đã có trong ca này] ${m.user?.name || m.fullName}`;
-                              } else if (conflict) {
-                                note = `[Trùng ca: ${conflict.name} (${conflict.startTime} - ${conflict.endTime})] ${m.user?.name || m.fullName}`;
-                              }
-
-                              return (
-                                <option
-                                  key={uid}
-                                  value={uid}
-                                  disabled={alreadyIn || !!conflict}
-                                  className={alreadyIn || conflict ? 'text-slate-400 bg-slate-50' : ''}
-                                >
-                                  {note || `${m.user?.name || m.fullName} (${m.user?.email || m.email}) — ${formatVND(m.hourlyWage)}/h`}
-                                </option>
-                              );
-                            })}
-                          </select>
-
-                          <button
-                            type="button"
-                            disabled={!assignModal.selectedUserId || !!selectedConflict || isSelectedAlready}
-                            onClick={handleAddEmployeeToShift}
-                            className="px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition"
-                          >
-                            <Plus className="w-4 h-4" />
-                            <span>Thêm vào ca</span>
-                          </button>
-                        </div>
-
-                        {/* Conflict alert for selected candidate */}
-                        {selectedConflict && (
-                          <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700 animate-fade-in mt-1">
-                            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                            <div>
-                              <p className="font-bold text-red-800">Cảnh báo: Trùng giờ làm việc!</p>
-                              <p className="mt-0.5 text-slate-600">
-                                Nhân viên này đã được phân ca <b>"{selectedConflict.name}" ({selectedConflict.startTime} - {selectedConflict.endTime})</b> vào ngày này. Không thể phân 2 ca cùng khung giờ!
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Modal Footer */}
-              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setAssignModal({ isOpen: false, date: '', shiftId: '', selectedUserId: '' })}
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs"
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0 ml-2"
                 >
-                  Xong & Đóng
+                  <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {/* SECTION 1: Current Assigned Employees */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-[#EA701B]" />
+                      <span>Nhân viên trong ca này ({currentCellAssignments.length} người)</span>
+                    </label>
+                    {currentCellAssignments.length > 0 && !isShiftPassed && (
+                      <button
+                        type="button"
+                        onClick={() => handleClearShiftAssignments(assignModal.date, assignModal.shiftId)}
+                        className="text-[11px] text-red-600 hover:underline font-semibold"
+                      >
+                        Xóa tất cả
+                      </button>
+                    )}
+                  </div>
+
+                  {currentCellAssignments.length === 0 ? (
+                    <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 bg-slate-50/50">
+                      {isShiftPassed
+                        ? 'Không có nhân viên nào được xếp trong ca này.'
+                        : 'Chưa có nhân viên nào trong ca này. Hãy chọn nhân viên bên dưới để thêm vào ca.'}
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                      {currentCellAssignments.map((a, idx) => {
+                        const aUserId = getUserId(a.userId);
+                        const member = members.find((m) => getUserId(m.user?._id || m.userId) === aUserId);
+                        const name = member?.user?.name || member?.fullName || a.userObj?.name || 'Nhân viên';
+                        const email = member?.user?.email || member?.email;
+                        const wage = member?.hourlyWage || 20000;
+                        const conflictShift = getAssignmentConflict(a);
+
+                        return (
+                          <div
+                            key={`${aUserId}_${idx}`}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
+                              conflictShift ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200/80'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div
+                                className={`w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 ${
+                                  conflictShift ? 'bg-red-500' : isShiftPassed ? 'bg-slate-500' : 'bg-[#EA701B]'
+                                }`}
+                              >
+                                {name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-800 truncate">{name}</p>
+                                <p className="text-[11px] text-slate-500 font-mono">
+                                  {formatVND(wage)}/h {email ? `• ${email}` : ''}
+                                </p>
+                                {conflictShift && (
+                                  <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-0.5">
+                                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                                    Trùng giờ với ca "{conflictShift.name}" ({conflictShift.startTime} - {conflictShift.endTime})
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {!isShiftPassed && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSingleAssignment(a.date, a.shiftId, a.userId)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0"
+                                title="Xóa khỏi ca"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* SECTION 2: Add New Employee to Shift */}
+                {isShiftPassed ? (
+                  <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 shadow-xs">
+                    <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-amber-950">Ca làm việc đã kết thúc — Không thể chỉnh sửa</p>
+                      <p className="mt-0.5 text-amber-800 leading-relaxed">
+                        Ca làm <strong>{targetShift?.name} ({targetShift?.startTime} — {targetShift?.endTime}, {assignModal.date})</strong> đã qua. Hệ thống tự động khóa ca để bảo toàn giờ làm và tiền lương của nhân viên, không thể sửa đổi hoặc xóa.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Thêm nhân viên vào ca này
+                    </label>
+                    {(() => {
+                      const selectedCandidateId = getUserId(assignModal.selectedUserId);
+                      const selectedConflict = selectedCandidateId
+                        ? getConflictingShift(selectedCandidateId, assignModal.date, currentShiftId)
+                        : null;
+                      const isSelectedAlready = selectedCandidateId
+                        ? currentCellAssignments.some((a) => getUserId(a.userId) === selectedCandidateId)
+                        : false;
+
+                      return (
+                        <>
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <select
+                              value={assignModal.selectedUserId}
+                              onChange={(e) =>
+                                setAssignModal((prev) => ({ ...prev, selectedUserId: e.target.value }))
+                              }
+                              className="flex-1 min-w-0 w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#EA701B] truncate"
+                            >
+                              <option value="">-- Chọn nhân viên để thêm --</option>
+                              {members.map((m) => {
+                                const uid = getUserId(m.user?._id || m.userId);
+                                const alreadyIn = currentCellAssignments.some((a) => getUserId(a.userId) === uid);
+                                const conflict = getConflictingShift(uid, assignModal.date, currentShiftId);
+
+                                let note = '';
+                                if (alreadyIn) {
+                                  note = `[Đã có trong ca này] ${m.user?.name || m.fullName}`;
+                                } else if (conflict) {
+                                  note = `[Trùng ca: ${conflict.name} (${conflict.startTime} - ${conflict.endTime})] ${m.user?.name || m.fullName}`;
+                                }
+
+                                return (
+                                  <option
+                                    key={uid}
+                                    value={uid}
+                                    disabled={alreadyIn || !!conflict}
+                                    className={alreadyIn || conflict ? 'text-slate-400 bg-slate-50' : ''}
+                                  >
+                                    {note || `${m.user?.name || m.fullName} (${m.user?.email || m.email}) — ${formatVND(m.hourlyWage)}/h`}
+                                  </option>
+                                );
+                              })}
+                            </select>
+
+                            <button
+                              type="button"
+                              disabled={!assignModal.selectedUserId || !!selectedConflict || isSelectedAlready}
+                              onClick={handleAddEmployeeToShift}
+                              className="px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition"
+                            >
+                              <Plus className="w-4 h-4" />
+                              <span>Thêm vào ca</span>
+                            </button>
+                          </div>
+
+                          {/* Conflict alert for selected candidate */}
+                          {selectedConflict && (
+                            <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700 animate-fade-in mt-1">
+                              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-bold text-red-800">Cảnh báo: Trùng giờ làm việc!</p>
+                                <p className="mt-0.5 text-slate-600">
+                                  Nhân viên này đã được phân ca <b>"{selectedConflict.name}" ({selectedConflict.startTime} - {selectedConflict.endTime})</b> vào ngày này. Không thể phân 2 ca cùng khung giờ!
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Modal Footer */}
+                <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setAssignModal({ isOpen: false, date: '', shiftId: '', selectedUserId: '' })}
+                    className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs"
+                  >
+                    Xong & Đóng
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL: Auto-Generate Schedule */}
       {autoScheduleModalOpen && (
