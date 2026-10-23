@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Clock,
   Plus,
   Edit2,
   Trash2,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   X,
   Sparkles,
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { shiftApi } from '../services/api';
+import { checkShiftOverlap } from '../utils/formatters';
 
 export const ShiftManagementPage = () => {
   const { store } = useAuth();
@@ -55,6 +57,34 @@ export const ShiftManagementPage = () => {
   useEffect(() => {
     loadShifts();
   }, [loadShifts]);
+
+  // Kiểm tra xung đột thời gian trong modal với các ca khác
+  const modalConflict = useMemo(() => {
+    if (!shiftModal.isOpen || !shiftModal.startTime || !shiftModal.endTime) return null;
+    return shifts.find(
+      (s) =>
+        (!shiftModal.isEdit || s._id !== shiftModal.shiftId) &&
+        checkShiftOverlap({ startTime: shiftModal.startTime, endTime: shiftModal.endTime }, s)
+    );
+  }, [shiftModal.isOpen, shiftModal.isEdit, shiftModal.shiftId, shiftModal.startTime, shiftModal.endTime, shifts]);
+
+  // Tìm các cặp ca làm việc đang bị trùng khung giờ với nhau trong toàn quán
+  const conflictingShiftMap = useMemo(() => {
+    const map = {};
+    for (let i = 0; i < shifts.length; i++) {
+      for (let j = i + 1; j < shifts.length; j++) {
+        if (checkShiftOverlap(shifts[i], shifts[j])) {
+          if (!map[shifts[i]._id]) map[shifts[i]._id] = [];
+          if (!map[shifts[j]._id]) map[shifts[j]._id] = [];
+          map[shifts[i]._id].push(shifts[j]);
+          map[shifts[j]._id].push(shifts[i]);
+        }
+      }
+    }
+    return map;
+  }, [shifts]);
+
+  const conflictingCount = Object.keys(conflictingShiftMap).length;
 
   // Auto-calculate duration hours when start or end time changes
   const calculateDuration = (start, end) => {
@@ -115,6 +145,15 @@ export const ShiftManagementPage = () => {
 
     if (shiftModal.durationHours <= 0) {
       setFeedback({ type: 'error', message: 'Giờ kết thúc phải muộn hơn giờ bắt đầu.' });
+      return;
+    }
+
+    // Kiểm tra không cho phép tạo/cập nhật ca bị trùng khung giờ
+    if (modalConflict) {
+      setFeedback({
+        type: 'error',
+        message: `Khung giờ của ca (${shiftModal.startTime} - ${shiftModal.endTime}) bị trùng/giao thoa với ca "${modalConflict.name}" (${modalConflict.startTime} - ${modalConflict.endTime}). Mỗi ca làm việc trong quán phải có khung giờ riêng biệt!`
+      });
       return;
     }
 
@@ -191,6 +230,21 @@ export const ShiftManagementPage = () => {
         </button>
       </div>
 
+      {/* Cảnh báo xung đột các ca đã có trong quán */}
+      {conflictingCount > 0 && (
+        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-start gap-3 shadow-xs animate-fade-in">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs">
+            <h4 className="font-bold text-amber-900 text-sm">
+              Cảnh báo: Có {conflictingCount} ca làm việc đang bị trùng/giao thoa khung giờ với nhau!
+            </h4>
+            <p className="text-amber-800 mt-1 leading-relaxed">
+              Các ca làm việc trong cùng một cửa hàng phải có khung giờ phân biệt. Hãy nhấn vào biểu tượng <b>chỉnh sửa</b> trên các ca bị đánh dấu cảnh báo bên dưới để điều chỉnh giờ bắt đầu hoặc kết thúc, tránh xung đột khi xếp lịch làm việc cho nhân viên.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Feedback banner */}
       {feedback && (
         <div
@@ -238,52 +292,74 @@ export const ShiftManagementPage = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {shifts.map((shift) => (
-            <div
-              key={shift._id}
-              className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs hover:border-orange-200 transition space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className="w-3.5 h-3.5 rounded-full shadow-xs"
-                    style={{ backgroundColor: shift.color || '#EA701B' }}
-                  />
-                  <h4 className="text-sm font-extrabold text-slate-900">{shift.name}</h4>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEdit(shift)}
-                    className="p-1.5 text-slate-400 hover:text-[#EA701B] hover:bg-orange-50 rounded-lg transition"
-                    title="Chỉnh sửa ca"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteModal({ isOpen: true, shift })}
-                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                    title="Xóa ca"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
+          {shifts.map((shift) => {
+            const conflicts = conflictingShiftMap[shift._id] || [];
+            const hasConflict = conflicts.length > 0;
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between text-xs font-mono">
-                <div className="flex items-center gap-1.5 text-slate-700">
-                  <Clock className="w-4 h-4 text-[#EA701B]" />
-                  <span>
-                    {shift.startTime} — {shift.endTime}
+            return (
+              <div
+                key={shift._id}
+                className={`bg-white rounded-2xl border p-5 shadow-xs transition space-y-4 ${
+                  hasConflict
+                    ? 'border-amber-300 ring-1 ring-amber-300/60 bg-amber-50/10'
+                    : 'border-slate-200/80 hover:border-orange-200'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="w-3.5 h-3.5 rounded-full shadow-xs shrink-0"
+                      style={{ backgroundColor: shift.color || '#EA701B' }}
+                    />
+                    <h4 className="text-sm font-extrabold text-slate-900 truncate">{shift.name}</h4>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(shift)}
+                      className="p-1.5 text-slate-400 hover:text-[#EA701B] hover:bg-orange-50 rounded-lg transition"
+                      title="Chỉnh sửa ca"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteModal({ isOpen: true, shift })}
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                      title="Xóa ca"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between text-xs font-mono">
+                  <div className="flex items-center gap-1.5 text-slate-700">
+                    <Clock className="w-4 h-4 text-[#EA701B]" />
+                    <span>
+                      {shift.startTime} — {shift.endTime}
+                    </span>
+                  </div>
+                  <span className="font-bold text-[#EA701B] bg-orange-100 px-2 py-0.5 rounded-md">
+                    {shift.durationHours} tiếng
                   </span>
                 </div>
-                <span className="font-bold text-[#EA701B] bg-orange-100 px-2 py-0.5 rounded-md">
-                  {shift.durationHours} tiếng
-                </span>
+
+                {/* Cảnh báo nếu ca này trùng giờ với ca khác trong quán */}
+                {hasConflict && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2 text-[11px] text-amber-800 animate-fade-in">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Trùng giờ với: </span>
+                      <span className="font-semibold text-amber-950">
+                        {conflicts.map((c) => `${c.name} (${c.startTime} - ${c.endTime})`).join(', ')}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -375,6 +451,23 @@ export const ShiftManagementPage = () => {
                 </div>
               </div>
 
+              {/* Conflict warning in modal */}
+              {modalConflict && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700 animate-fade-in">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-red-800">Cảnh báo: Trùng khung giờ ca làm!</p>
+                    <p className="mt-0.5 text-slate-600">
+                      Khung giờ ({shiftModal.startTime} — {shiftModal.endTime}) bị trùng/giao thoa với ca{' '}
+                      <b>
+                        "{modalConflict.name}" ({modalConflict.startTime} — {modalConflict.endTime})
+                      </b>
+                      . Các ca làm việc trong cửa hàng không được phép trùng khung giờ với nhau!
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
@@ -385,7 +478,8 @@ export const ShiftManagementPage = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs"
+                  disabled={!!modalConflict || shiftModal.durationHours <= 0}
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed transition"
                 >
                   {shiftModal.isEdit ? 'Lưu cập nhật' : 'Tạo ca làm'}
                 </button>

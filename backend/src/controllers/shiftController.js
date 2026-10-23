@@ -49,6 +49,31 @@ const calculateHours = (startTime, endTime) => {
 };
 
 /**
+ * Chuyển đổi định dạng thời gian "HH:MM" sang số phút
+ */
+const timeToMinutes = (timeStr) => {
+  if (!timeStr || typeof timeStr !== 'string') return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/**
+ * Kiểm tra xem 2 ca làm việc có bị trùng hoặc giao thoa khung giờ hay không
+ */
+const checkShiftOverlap = (shift1, shift2) => {
+  if (!shift1 || !shift2) return false;
+  let start1 = timeToMinutes(shift1.startTime);
+  let end1 = timeToMinutes(shift1.endTime);
+  let start2 = timeToMinutes(shift2.startTime);
+  let end2 = timeToMinutes(shift2.endTime);
+
+  if (end1 <= start1) end1 += 1440;
+  if (end2 <= start2) end2 += 1440;
+
+  return start1 < end2 && start2 < end1;
+};
+
+/**
  * @desc    Lấy danh sách các Slot/ca làm của cửa hàng
  * @route   GET /api/stores/:storeId/shifts
  * @access  Private (Mọi thành viên trong quán)
@@ -133,6 +158,22 @@ export const createShift = async (req, res) => {
       hours = calculateHours(startTime.trim(), endTime.trim());
     }
 
+    // Kiểm tra không cho phép tạo ca có khung giờ trùng/giao thoa với ca đã tồn tại trong quán
+    const existingShifts = await Shift.find({ storeId });
+    for (const existing of existingShifts) {
+      if (
+        checkShiftOverlap(
+          { startTime: startTime.trim(), endTime: endTime.trim() },
+          existing
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Khung giờ của ca mới (${startTime.trim()} - ${endTime.trim()}) bị trùng/giao thoa với ca "${existing.name}" (${existing.startTime} - ${existing.endTime}). Các ca làm việc trong cửa hàng không được phép trùng khung giờ với nhau!`,
+        });
+      }
+    }
+
     const newShift = await Shift.create({
       storeId,
       name: name.trim(),
@@ -199,6 +240,25 @@ export const updateShift = async (req, res) => {
         success: false,
         message: 'Giờ kết thúc không đúng định dạng HH:mm (ví dụ: 11:30).',
       });
+    }
+
+    const targetStartTime = startTime ? startTime.trim() : shift.startTime;
+    const targetEndTime = endTime ? endTime.trim() : shift.endTime;
+
+    // Kiểm tra không cho phép cập nhật khung giờ trùng/giao thoa với các ca khác trong quán
+    const otherShifts = await Shift.find({ storeId, _id: { $ne: shiftId } });
+    for (const other of otherShifts) {
+      if (
+        checkShiftOverlap(
+          { startTime: targetStartTime, endTime: targetEndTime },
+          other
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Khung giờ cập nhật (${targetStartTime} - ${targetEndTime}) bị trùng/giao thoa với ca "${other.name}" (${other.startTime} - ${other.endTime}). Các ca làm việc trong cửa hàng không được phép trùng khung giờ với nhau!`,
+        });
+      }
     }
 
     if (name) shift.name = name.trim();

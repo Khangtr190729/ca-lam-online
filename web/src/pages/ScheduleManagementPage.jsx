@@ -33,6 +33,23 @@ import {
   checkShiftOverlap
 } from '../utils/formatters';
 
+// Helpers chuẩn hóa ID về dạng chuỗi an toàn tuyệt đối
+export const getUserId = (userOrId) => {
+  if (!userOrId) return '';
+  if (typeof userOrId === 'object') {
+    return String(userOrId._id || userOrId.id || userOrId.userId || '');
+  }
+  return String(userOrId);
+};
+
+export const getShiftId = (shiftOrId) => {
+  if (!shiftOrId) return '';
+  if (typeof shiftOrId === 'object') {
+    return String(shiftOrId._id || shiftOrId.id || shiftOrId.shiftId || '');
+  }
+  return String(shiftOrId);
+};
+
 export const ScheduleManagementPage = () => {
   const { store, user, roleInStore, refreshUser } = useAuth();
   const [currentMonday, setCurrentMonday] = useState(() => getMondayOfWeek());
@@ -72,16 +89,25 @@ export const ScheduleManagementPage = () => {
       if (shiftsRes.success) setShifts(shiftsRes.shifts || shiftsRes.data || []);
       if (membersRes.success) {
         const rawMembers = membersRes.members || membersRes.data || [];
-        const normalized = rawMembers.map((m) => ({
-          ...m,
-          _id: m.memberId || m._id,
-          hourlyWage: m.hourlyWage || 20000,
-          user: {
-            _id: m.userId || m.user?._id,
-            name: m.fullName || m.user?.fullName || m.user?.name,
-            email: m.email || m.user?.email
-          }
-        }));
+        const normalized = rawMembers.map((m) => {
+          const userObj = typeof m.userId === 'object' && m.userId !== null ? m.userId : (m.user || {});
+          const actualUserId = String(userObj._id || (typeof m.userId === 'string' ? m.userId : (m.user?._id || m._id)));
+          const actualName = userObj.fullName || m.fullName || userObj.name || 'Nhân viên';
+          const actualEmail = userObj.email || m.email || '';
+          return {
+            ...m,
+            _id: String(m.memberId || m._id),
+            userId: actualUserId,
+            hourlyWage: m.hourlyWage || 20000,
+            fullName: actualName,
+            email: actualEmail,
+            user: {
+              _id: actualUserId,
+              name: actualName,
+              email: actualEmail
+            }
+          };
+        });
         setMembers(normalized);
       }
     } catch (err) {
@@ -99,14 +125,22 @@ export const ScheduleManagementPage = () => {
         const sched = res.schedule || res;
         setScheduleStatus(sched.status || 'DRAFT');
         const rawAssignments = sched.assignments || res.assignments || [];
-        const formatted = rawAssignments.map((a) => ({
-          date: a.date,
-          dayOfWeek: a.dayOfWeek,
-          shiftId: typeof a.shiftId === 'object' ? a.shiftId?._id : a.shiftId,
-          userId: typeof a.userId === 'object' ? a.userId?._id : a.userId,
-          userObj: typeof a.userId === 'object' ? { _id: a.userId._id, name: a.userId.fullName || a.userId.name } : null,
-          shiftObj: typeof a.shiftId === 'object' ? a.shiftId : null
-        }));
+        const formatted = rawAssignments.map((a) => {
+          const sId = getShiftId(a.shiftId);
+          const uId = getUserId(a.userId);
+          const uName =
+            (typeof a.userId === 'object' && a.userId !== null
+              ? (a.userId.fullName || a.userId.name)
+              : '') || 'Nhân viên';
+          return {
+            date: a.date,
+            dayOfWeek: a.dayOfWeek,
+            shiftId: sId,
+            userId: uId,
+            userObj: { _id: uId, name: uName },
+            shiftObj: typeof a.shiftId === 'object' && a.shiftId !== null ? a.shiftId : null
+          };
+        });
         setAssignments(formatted);
       } else {
         setAssignments([]);
@@ -158,15 +192,17 @@ export const ScheduleManagementPage = () => {
   const getConflictingShift = useCallback(
     (userId, dateStr, targetShiftId) => {
       if (!userId || !dateStr || !targetShiftId) return null;
-      const targetShift = shifts.find((s) => s._id === targetShiftId);
+      const tShiftId = getShiftId(targetShiftId);
+      const uId = getUserId(userId);
+      const targetShift = shifts.find((s) => getShiftId(s._id) === tShiftId);
       if (!targetShift) return null;
 
       const otherAssignments = assignments.filter(
-        (a) => a.date === dateStr && a.userId === userId && a.shiftId !== targetShiftId
+        (a) => a.date === dateStr && getUserId(a.userId) === uId && getShiftId(a.shiftId) !== tShiftId
       );
 
       for (const a of otherAssignments) {
-        const otherShift = shifts.find((s) => s._id === a.shiftId) || a.shiftObj;
+        const otherShift = shifts.find((s) => getShiftId(s._id) === getShiftId(a.shiftId)) || a.shiftObj;
         if (otherShift && checkShiftOverlap(targetShift, otherShift)) {
           return otherShift;
         }
@@ -180,24 +216,29 @@ export const ScheduleManagementPage = () => {
   const getAssignmentConflict = useCallback(
     (assignment) => {
       if (!assignment || !assignment.userId || !assignment.date) return null;
-      const targetShift = shifts.find((s) => s._id === assignment.shiftId) || assignment.shiftObj;
+      const targetUserId = getUserId(assignment.userId);
+      const targetShiftId = getShiftId(assignment.shiftId);
+      const targetShift = shifts.find((s) => getShiftId(s._id) === targetShiftId) || assignment.shiftObj;
       if (!targetShift) return null;
 
       const conflicting = assignments.find((a) => {
         if (
           a === assignment ||
-          a.shiftId === assignment.shiftId ||
           a.date !== assignment.date ||
-          a.userId !== assignment.userId
+          getUserId(a.userId) !== targetUserId
         ) {
           return false;
         }
-        const otherShift = shifts.find((s) => s._id === a.shiftId) || a.shiftObj;
+        // Nếu trùng cùng 1 ca: coi là conflict duplicate
+        if (getShiftId(a.shiftId) === targetShiftId) {
+          return true;
+        }
+        const otherShift = shifts.find((s) => getShiftId(s._id) === getShiftId(a.shiftId)) || a.shiftObj;
         return otherShift && checkShiftOverlap(targetShift, otherShift);
       });
 
       if (conflicting) {
-        return shifts.find((s) => s._id === conflicting.shiftId) || conflicting.shiftObj;
+        return shifts.find((s) => getShiftId(s._id) === getShiftId(conflicting.shiftId)) || conflicting.shiftObj;
       }
       return null;
     },
@@ -208,45 +249,49 @@ export const ScheduleManagementPage = () => {
   const scheduleConflicts = useMemo(() => {
     const conflicts = [];
     assignments.forEach((a1, idx1) => {
-      if (!a1.userId || !a1.date || !a1.shiftId) return;
-      const shift1 = shifts.find((s) => s._id === a1.shiftId) || a1.shiftObj;
+      const uId1 = getUserId(a1.userId);
+      const sId1 = getShiftId(a1.shiftId);
+      if (!uId1 || !a1.date || !sId1) return;
+      const shift1 = shifts.find((s) => getShiftId(s._id) === sId1) || a1.shiftObj;
       if (!shift1) return;
 
       assignments.forEach((a2, idx2) => {
         if (idx1 >= idx2) return;
+        const uId2 = getUserId(a2.userId);
+        const sId2 = getShiftId(a2.shiftId);
         // Chỉ xét xung đột nếu là CÙNG 1 NHÂN VIÊN trong CÙNG 1 NGÀY
-        if (a1.date !== a2.date || a1.userId !== a2.userId) return;
+        if (a1.date !== a2.date || uId1 !== uId2) return;
 
-        const shift2 = shifts.find((s) => s._id === a2.shiftId) || a2.shiftObj;
+        const shift2 = shifts.find((s) => getShiftId(s._id) === sId2) || a2.shiftObj;
         if (!shift2) return;
 
-        const emp = members.find((m) => (m.user?._id || m.userId) === a1.userId);
+        const emp = members.find((m) => getUserId(m.user?._id || m.userId) === uId1);
         const empName = emp?.user?.name || emp?.fullName || a1.userObj?.name || 'Nhân viên';
 
-        // Trùng lặp do thêm 2 lần cùng 1 người vào 1 ca
-        if (a1.shiftId === a2.shiftId) {
+        // 1. Trùng lặp do thêm 2 lần cùng 1 người vào 1 ca
+        if (sId1 === sId2) {
           conflicts.push({
             date: a1.date,
-            userId: a1.userId,
+            userId: uId1,
             employeeName: empName,
             shift1,
             shift2,
             isDuplicate: true,
-            message: `Nhân viên "${empName}" bị trùng lặp 2 lần trong ca "${shift1.name}" ngày ${a1.date}!`
+            message: `Lỗi trùng lặp: Nhân viên "${empName}" đã được phân công 2 lần vào ca "${shift1.name}" ngày ${a1.date}!`
           });
           return;
         }
 
-        // Trùng lặp do 2 ca khác nhau có khung giờ giao thoa
+        // 2. Trùng lặp do 2 ca khác nhau có khung giờ giao thoa
         if (checkShiftOverlap(shift1, shift2)) {
           conflicts.push({
             date: a1.date,
-            userId: a1.userId,
+            userId: uId1,
             employeeName: empName,
             shift1,
             shift2,
             isDuplicate: false,
-            message: `Nhân viên "${empName}" bị trùng giờ làm việc vào ngày ${a1.date} giữa ca "${shift1.name}" (${shift1.startTime} - ${shift1.endTime}) và ca "${shift2.name}" (${shift2.startTime} - ${shift2.endTime})!`
+            message: `Lỗi trùng ca: Nhân viên "${empName}" bị trùng giờ làm việc vào ngày ${a1.date} giữa ca "${shift1.name}" (${shift1.startTime} - ${shift1.endTime}) và ca "${shift2.name}" (${shift2.startTime} - ${shift2.endTime})!`
           });
         }
       });
@@ -271,7 +316,7 @@ export const ScheduleManagementPage = () => {
     setAssignModal({
       isOpen: true,
       date: dateStr,
-      shiftId: shiftId,
+      shiftId: getShiftId(shiftId),
       selectedUserId: ''
     });
   };
@@ -279,24 +324,25 @@ export const ScheduleManagementPage = () => {
   // Thêm một nhân viên vào ca làm việc
   const handleAddEmployeeToShift = () => {
     if (!assignModal.selectedUserId || !assignModal.date || !assignModal.shiftId) return;
-    const uid = assignModal.selectedUserId;
+    const uid = getUserId(assignModal.selectedUserId);
+    const sid = getShiftId(assignModal.shiftId);
 
     // 1. Kiểm tra nhân viên này đã có trong ca này chưa
     const alreadyIn = assignments.some(
-      (a) => a.date === assignModal.date && a.shiftId === assignModal.shiftId && a.userId === uid
+      (a) => a.date === assignModal.date && getShiftId(a.shiftId) === sid && getUserId(a.userId) === uid
     );
     if (alreadyIn) {
       setFeedback({
         type: 'error',
-        message: 'Nhân viên này đã được phân công vào ca này rồi!'
+        message: 'Nhân viên này đã được phân công vào ca này rồi! Không thể thêm cùng một nhân viên nhiều lần vào cùng một ca.'
       });
       return;
     }
 
     // 2. Kiểm tra xung đột với ca khác của cùng nhân viên trong ngày
-    const conflict = getConflictingShift(uid, assignModal.date, assignModal.shiftId);
+    const conflict = getConflictingShift(uid, assignModal.date, sid);
     if (conflict) {
-      const selectedMember = members.find((m) => (m.user?._id || m.userId) === uid);
+      const selectedMember = members.find((m) => getUserId(m.user?._id || m.userId) === uid);
       const name = selectedMember?.user?.name || selectedMember?.fullName || 'Nhân viên';
       setFeedback({
         type: 'error',
@@ -305,14 +351,14 @@ export const ScheduleManagementPage = () => {
       return;
     }
 
-    const selectedMember = members.find((m) => (m.user?._id || m.userId) === uid);
-    const selectedShift = shifts.find((s) => s._id === assignModal.shiftId);
+    const selectedMember = members.find((m) => getUserId(m.user?._id || m.userId) === uid);
+    const selectedShift = shifts.find((s) => getShiftId(s._id) === sid);
     const day = daysOfWeek.find((d) => d.dateStr === assignModal.date);
 
     const newAssignment = {
       date: assignModal.date,
       dayOfWeek: day?.dayName || 'Thứ Hai',
-      shiftId: assignModal.shiftId,
+      shiftId: sid,
       userId: uid,
       userObj: selectedMember?.user || { _id: uid, name: 'Nhân viên' },
       shiftObj: selectedShift
@@ -324,18 +370,21 @@ export const ScheduleManagementPage = () => {
 
   // Xóa một nhân viên cụ thể khỏi ca
   const handleRemoveSingleAssignment = (dateStr, shiftId, userId) => {
+    const sId = getShiftId(shiftId);
+    const uId = getUserId(userId);
     setAssignments((prev) =>
       prev.filter(
-        (a) => !(a.date === dateStr && a.shiftId === shiftId && a.userId === userId)
+        (a) => !(a.date === dateStr && getShiftId(a.shiftId) === sId && getUserId(a.userId) === uId)
       )
     );
   };
 
   // Xóa toàn bộ nhân viên khỏi ca này
   const handleClearShiftAssignments = (dateStr, shiftId) => {
+    const sId = getShiftId(shiftId);
     setAssignments((prev) =>
       prev.filter(
-        (a) => !(a.date === dateStr && a.shiftId === shiftId)
+        (a) => !(a.date === dateStr && getShiftId(a.shiftId) === sId)
       )
     );
   };
@@ -362,8 +411,8 @@ export const ScheduleManagementPage = () => {
           return {
             date: a.date,
             dayOfWeek: day?.dayName || 'Thứ Hai',
-            shiftId: a.shiftId,
-            userId: a.userId
+            shiftId: getShiftId(a.shiftId),
+            userId: getUserId(a.userId)
           };
         })
       };
@@ -405,8 +454,8 @@ export const ScheduleManagementPage = () => {
           return {
             date: a.date,
             dayOfWeek: day?.dayName || 'Thứ Hai',
-            shiftId: a.shiftId,
-            userId: a.userId
+            shiftId: getShiftId(a.shiftId),
+            userId: getUserId(a.userId)
           };
         })
       };
@@ -432,7 +481,7 @@ export const ScheduleManagementPage = () => {
     const employeeMap = {};
 
     members.forEach((m) => {
-      const uid = m.user?._id || m.userId;
+      const uid = getUserId(m.user?._id || m.userId);
       if (uid) {
         employeeMap[uid] = {
           name: m.user?.name || m.fullName,
@@ -446,11 +495,12 @@ export const ScheduleManagementPage = () => {
     });
 
     assignments.forEach((a) => {
-      const shift = shifts.find((s) => s._id === a.shiftId) || a.shiftObj;
+      const shift = shifts.find((s) => getShiftId(s._id) === getShiftId(a.shiftId)) || a.shiftObj;
       const duration = shift?.durationHours || 4;
-      if (employeeMap[a.userId]) {
-        employeeMap[a.userId].totalShifts += 1;
-        employeeMap[a.userId].totalHours += duration;
+      const uId = getUserId(a.userId);
+      if (employeeMap[uId]) {
+        employeeMap[uId].totalShifts += 1;
+        employeeMap[uId].totalHours += duration;
       }
     });
 
@@ -746,8 +796,9 @@ export const ScheduleManagementPage = () => {
 
                     {/* 7 Daily cells for this shift */}
                     {daysOfWeek.map((day) => {
+                      const currentShiftId = getShiftId(shift._id);
                       const cellAssignments = assignments.filter(
-                        (a) => a.date === day.dateStr && a.shiftId === shift._id
+                        (a) => a.date === day.dateStr && getShiftId(a.shiftId) === currentShiftId
                       );
                       const hasAnyConflict = cellAssignments.some((a) => !!getAssignmentConflict(a));
 
@@ -794,8 +845,9 @@ export const ScheduleManagementPage = () => {
 
                                 <div className="space-y-1">
                                   {cellAssignments.map((a, idx) => {
+                                    const aUserId = getUserId(a.userId);
                                     const assignedUser =
-                                      members.find((m) => (m.user?._id || m.userId) === a.userId)?.user ||
+                                      members.find((m) => getUserId(m.user?._id || m.userId) === aUserId)?.user ||
                                       a.userObj || { name: 'Nhân viên' };
                                     const conflictShift = getAssignmentConflict(a);
 
@@ -986,8 +1038,9 @@ export const ScheduleManagementPage = () => {
                         </div>
                       ) : (
                         <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                          {currentCellAssignments.map((a) => {
-                            const member = members.find((m) => (m.user?._id || m.userId) === a.userId);
+                          {currentCellAssignments.map((a, idx) => {
+                            const aUserId = getUserId(a.userId);
+                            const member = members.find((m) => getUserId(m.user?._id || m.userId) === aUserId);
                             const name = member?.user?.name || member?.fullName || a.userObj?.name || 'Nhân viên';
                             const email = member?.user?.email || member?.email;
                             const wage = member?.hourlyWage || 20000;
@@ -995,7 +1048,7 @@ export const ScheduleManagementPage = () => {
 
                             return (
                               <div
-                                key={a.userId}
+                                key={`${aUserId}_${idx}`}
                                 className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
                                   conflictShift ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200/80'
                                 }`}
@@ -1046,15 +1099,17 @@ export const ScheduleManagementPage = () => {
                   Thêm nhân viên vào ca này
                 </label>
                 {(() => {
+                  const currentShiftId = getShiftId(assignModal.shiftId);
                   const currentCellAssignments = assignments.filter(
-                    (a) => a.date === assignModal.date && a.shiftId === assignModal.shiftId
+                    (a) => a.date === assignModal.date && getShiftId(a.shiftId) === currentShiftId
                   );
-                  const selectedConflict = assignModal.selectedUserId
-                    ? getConflictingShift(assignModal.selectedUserId, assignModal.date, assignModal.shiftId)
+                  const selectedCandidateId = getUserId(assignModal.selectedUserId);
+                  const selectedConflict = selectedCandidateId
+                    ? getConflictingShift(selectedCandidateId, assignModal.date, currentShiftId)
                     : null;
-                  const isSelectedAlready = currentCellAssignments.some(
-                    (a) => a.userId === assignModal.selectedUserId
-                  );
+                  const isSelectedAlready = selectedCandidateId
+                    ? currentCellAssignments.some((a) => getUserId(a.userId) === selectedCandidateId)
+                    : false;
 
                   return (
                     <>
@@ -1068,9 +1123,9 @@ export const ScheduleManagementPage = () => {
                         >
                           <option value="">-- Chọn nhân viên để thêm --</option>
                           {members.map((m) => {
-                            const uid = m.user?._id || m.userId;
-                            const alreadyIn = currentCellAssignments.some((a) => a.userId === uid);
-                            const conflict = getConflictingShift(uid, assignModal.date, assignModal.shiftId);
+                            const uid = getUserId(m.user?._id || m.userId);
+                            const alreadyIn = currentCellAssignments.some((a) => getUserId(a.userId) === uid);
+                            const conflict = getConflictingShift(uid, assignModal.date, currentShiftId);
 
                             let note = '';
                             if (alreadyIn) {

@@ -81,22 +81,42 @@ const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
     }
   });
 
+  // Helper trích xuất ID dạng chuỗi (hỗ trợ cả ObjectId, String, hoặc Object {_id})
+  const extractId = (val) => {
+    if (!val) return '';
+    if (typeof val === 'object') return String(val._id || val.id || '');
+    return String(val);
+  };
+
   // 3. Kiểm tra logic trùng giờ làm việc: 1 người không thể làm 2 ca trùng/giao thoa giờ trong 1 ngày
   const userDateShifts = {};
   for (const item of rawAssignments) {
-    if (!item.date || !item.shiftId || !item.userId) continue;
-    const shift = shiftMap[item.shiftId.toString()];
-    const member = memberMap[item.userId.toString()];
+    const sId = extractId(item.shiftId);
+    const uId = extractId(item.userId);
+    if (!item.date || !sId || !uId) continue;
+    const shift = shiftMap[sId];
+    const member = memberMap[uId];
     if (!shift || !member) continue;
 
-    const key = `${item.date}_${item.userId.toString()}`;
+    const key = `${item.date}_${uId}`;
     if (!userDateShifts[key]) {
       userDateShifts[key] = [];
     }
 
     for (const existingShift of userDateShifts[key]) {
+      // 1. Kiểm tra nếu bị phân trùng 2 lần cùng 1 ca
+      if (existingShift._id.toString() === shift._id.toString()) {
+        const memberName = member.userId ? (member.userId.fullName || member.userId.name) : 'Nhân viên';
+        const err = new Error(
+          `Lỗi trùng lặp: Nhân viên "${memberName}" đã được phân công vào ca "${shift.name}" ngày ${item.date}. Không thể thêm cùng một nhân viên nhiều lần vào cùng một ca!`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // 2. Kiểm tra nếu trùng khung giờ giữa 2 ca khác nhau
       if (checkShiftOverlap(shift, existingShift)) {
-        const memberName = member.userId ? member.userId.fullName : 'Nhân viên';
+        const memberName = member.userId ? (member.userId.fullName || member.userId.name) : 'Nhân viên';
         const err = new Error(
           `Lỗi trùng ca: Nhân viên "${memberName}" bị trùng giờ làm việc vào ngày ${item.date} giữa ca "${existingShift.name}" (${existingShift.startTime} - ${existingShift.endTime}) và ca "${shift.name}" (${shift.startTime} - ${shift.endTime}). Một người không thể làm 2 ca trong cùng khung giờ!`
         );
@@ -113,8 +133,10 @@ const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
   const salaryMap = {};
 
   for (const item of rawAssignments) {
-    const shift = shiftMap[item.shiftId.toString()];
-    const member = memberMap[item.userId.toString()];
+    const sId = extractId(item.shiftId);
+    const uId = extractId(item.userId);
+    const shift = shiftMap[sId];
+    const member = memberMap[uId];
 
     if (!shift || !member) continue;
 
