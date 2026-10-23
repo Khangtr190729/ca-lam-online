@@ -5,6 +5,7 @@ import {
   publishSchedule,
   getMySchedule,
   autoGenerateSchedule,
+  evaluateShift,
 } from '../controllers/scheduleController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 
@@ -23,6 +24,9 @@ storeScheduleRouter.post('/auto-generate', autoGenerateSchedule);
 
 // 4. Xuất bản (PUBLISHED) & Gửi Email kèm lương: POST /api/stores/:storeId/schedules/publish
 storeScheduleRouter.post('/publish', publishSchedule);
+
+// 5. Đánh giá ca làm việc (Hoàn thành / Không hoàn thành): PUT /api/stores/:storeId/schedules/evaluate-shift
+storeScheduleRouter.put('/evaluate-shift', evaluateShift);
 
 // Router riêng cho nhân viên xem lịch cá nhân: /api/schedules/my-schedule
 const personalScheduleRouter = express.Router();

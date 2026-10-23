@@ -88,6 +88,8 @@ export const scheduleApi = {
     api.post(`/stores/${storeId}/schedules/publish`, payload),
   publishSchedule: (storeId, payload) =>
     api.post(`/stores/${storeId}/schedules/publish`, payload),
+  evaluateShift: (storeId, payload) =>
+    api.put(`/stores/${storeId}/schedules/evaluate-shift`, payload),
   getMySchedule: (week, year) =>
     api.get(`/schedules/my-schedule?week=${week}&year=${year}`)
 };

@@ -3,12 +3,14 @@ import { sendScheduleEmail } from '../services/emailService.js';
 import { verifyStoreAccess } from '../services/storeAccessService.js';
 import {
   getTodayDateString,
+  getWeekNumberAndYear,
 } from '../utils/timeScheduleHelpers.js';
 import {
   validatePassedShiftImmutability,
   processAssignmentsAndSalary,
   calculateSalarySummaryFromAssignments,
   generateAutoSchedule,
+  evaluateShiftAttendance,
 } from '../services/scheduleService.js';
 
 /**
@@ -475,6 +477,75 @@ export const autoGenerateSchedule = async (req, res) => {
     return res.status(error.statusCode || 500).json({
       success: false,
       message: error.message || 'Lỗi máy chủ khi tự động xếp lịch',
+    });
+  }
+};
+
+/**
+ * @desc    Đánh giá ca làm việc (Hoàn thành hoặc Không hoàn thành/Vắng)
+ * @route   PUT /api/stores/:storeId/schedules/evaluate-shift
+ * @access  Private (Chủ hoặc Quản lý)
+ */
+export const evaluateShift = async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const { week, year, weekStart, date, shiftId, userId, attendanceStatus, missedReason } = req.body;
+    const evaluatorId = req.user.id;
+
+    let targetWeek = week;
+    let targetYear = year;
+    if ((!targetWeek || !targetYear) && (date || weekStart)) {
+      const computed = getWeekNumberAndYear(date || weekStart);
+      targetWeek = computed.week;
+      targetYear = computed.year;
+    }
+
+    if (!targetWeek || !targetYear || !date || !shiftId || !userId || !attendanceStatus) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ: week, year, date, shiftId, userId, attendanceStatus.',
+      });
+    }
+
+    const access = await verifyStoreAccess(storeId, evaluatorId);
+    if (access.error) {
+      return res.status(404).json({ success: false, message: access.error });
+    }
+
+    if (!access.isManager) {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ Chủ cửa hàng hoặc Quản lý mới có quyền đánh giá ca làm việc.',
+      });
+    }
+
+    const result = await evaluateShiftAttendance({
+      storeId,
+      week: Number(targetWeek),
+      year: Number(targetYear),
+      date,
+      shiftId,
+      userId,
+      attendanceStatus,
+      missedReason,
+      evaluatorId,
+    });
+
+    const isMissed = attendanceStatus === 'MISSED';
+    return res.status(200).json({
+      success: true,
+      message: isMissed
+        ? 'Đã đánh dấu ca làm Không hoàn thành và trừ lương nhân viên thành công! Email thông báo đã được gửi.'
+        : 'Đã khôi phục ca làm việc sang trạng thái Hoàn thành và cộng lại lương thành công!',
+      schedule: result.schedule,
+      salarySummary: result.salarySummary,
+      emailSent: result.emailResult?.success || false,
+    });
+  } catch (error) {
+    console.error('Lỗi đánh giá ca làm:', error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || 'Lỗi máy chủ khi đánh giá ca làm việc.',
     });
   }
 };

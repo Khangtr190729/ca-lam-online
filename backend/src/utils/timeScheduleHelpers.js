@@ -90,3 +90,43 @@ export const isShiftTimePassed = (dateStr, shift) => {
   // Ca đã qua khi giờ hiện tại >= giờ kết thúc của ca
   return currentMinutes >= endMinutes;
 };
+
+/**
+ * Kiểm tra xem một ca làm việc vào ngày dateStr đã bắt đầu hoặc đã qua hay chưa
+ * - Ngày trong quá khứ (dateStr < todayStr) -> ĐÃ QUA (hợp lệ để đánh giá)
+ * - Ngày hôm nay (dateStr === todayStr):
+ *     + Nếu giờ hiện tại >= giờ bắt đầu của ca (currentTime >= startTime) -> ĐANG DIỄN RA HOẶC ĐÃ XONG (hợp lệ để đánh giá)
+ * - Ngày tương lai (dateStr > todayStr) -> CHƯA BẮT ĐẦU (tuyệt đối KHÔNG được đánh giá)
+ */
+export const isShiftStartedOrPassed = (dateStr, shift) => {
+  if (!dateStr || !shift) return false;
+  const todayStr = getTodayDateString();
+
+  if (dateStr < todayStr) return true;
+  if (dateStr > todayStr) return false;
+
+  // Nếu là ngày hôm nay:
+  const currentMinutes = timeToMinutes(getCurrentVNTime());
+  const startMinutes = timeToMinutes(shift.startTime);
+
+  return currentMinutes >= startMinutes;
+};
+
+/**
+ * Lấy số tuần ISO và năm cho một ngày bất kỳ (hoặc chuỗi YYYY-MM-DD)
+ */
+export const getWeekNumberAndYear = (dateInput = new Date()) => {
+  const date = new Date(dateInput);
+  date.setHours(0, 0, 0, 0);
+  // Thứ Năm của tuần quyết định năm ISO
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  const week =
+    1 +
+    Math.round(
+      ((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7
+    );
+  return { week, year: date.getFullYear() };
+};
+
+

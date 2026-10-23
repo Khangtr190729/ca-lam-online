@@ -33,7 +33,25 @@ const assignmentSchema = new mongoose.Schema(
     totalPay: {
       type: Number,
       required: true,
-      default: 0, // Tiền lương ca = hours * hourlyWage
+      default: 0, // Tiền lương ca = hours * hourlyWage (nếu MISSED thì = 0)
+    },
+    attendanceStatus: {
+      type: String,
+      enum: ['COMPLETED', 'MISSED'],
+      default: 'COMPLETED',
+    },
+    missedReason: {
+      type: String,
+      default: '',
+    },
+    evaluatedAt: {
+      type: Date,
+      default: null,
+    },
+    evaluatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
   },
   { _id: true }

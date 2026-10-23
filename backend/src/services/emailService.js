@@ -196,3 +196,91 @@ export const sendStoreInviteEmail = async ({ toEmail, storeName, inviteCode }) =
     return { success: false, error: error.message, to: toEmail };
   }
 };
+
+/**
+ * Gửi email thông báo Nhân viên bị đánh giá Không hoàn thành ca làm việc & Bị trừ lương
+ */
+export const sendMissedShiftEmail = async ({
+  toEmail,
+  employeeName,
+  storeName,
+  shiftName,
+  timeRange,
+  date,
+  dayOfWeek,
+  deductedHours,
+  deductedPay,
+  reason,
+  updatedTotalSalary,
+}) => {
+  try {
+    const transporter = createTransporter();
+
+    if (!transporter) {
+      console.log(
+        `[EMAIL SIMULATION] Thông báo trừ ca ${shiftName} (${date}) đến ${toEmail} (${employeeName}) - Trừ ${deductedPay.toLocaleString('vi-VN')} VNĐ. Lý do: ${reason}`
+      );
+      return { success: true, simulated: true, to: toEmail };
+    }
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #fee2e2; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); padding: 24px; text-align: center; color: white;">
+          <h2 style="margin: 0; font-size: 20px;">${storeName}</h2>
+          <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.95; letter-spacing: 0.5px;">THÔNG BÁO ĐÁNH GIÁ CA LÀM & ĐIỀU CHỈNH TIỀN LƯƠNG</p>
+        </div>
+
+        <div style="padding: 24px;">
+          <p style="font-size: 15px; color: #1f2937;">Xin chào <strong>${employeeName}</strong>,</p>
+          <p style="color: #4b5563; line-height: 1.6; font-size: 14px;">
+            Quản lý cửa hàng <strong>${storeName}</strong> vừa cập nhật đánh giá ca làm việc của bạn sang trạng thái 
+            <strong style="color: #dc2626; background-color: #fef2f2; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecaca;">Không hoàn thành (Vắng mặt)</strong>.
+          </p>
+
+          <div style="margin: 20px 0; padding: 16px; background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px;">
+            <h4 style="margin: 0 0 12px 0; color: #991b1b; font-size: 15px;">CHI TIẾT CA LÀM BỊ ĐÁNH GIÁ:</h4>
+            <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
+              <span>• Ca làm việc:</span> <strong>${shiftName} (${timeRange})</strong>
+            </div>
+            <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
+              <span>• Thời gian:</span> <strong>${dayOfWeek}, ngày ${date}</strong>
+            </div>
+            <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
+              <span>• Số giờ bị trừ:</span> <strong>-${deductedHours} giờ</strong>
+            </div>
+            <div style="margin-bottom: 8px; font-size: 14px; color: #dc2626; font-weight: bold;">
+              <span>• Tiền lương bị trừ:</span> <strong style="font-size: 16px;">-${deductedPay.toLocaleString('vi-VN')} VNĐ</strong>
+            </div>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #f87171; font-size: 14px; color: #991b1b;">
+              <span>• Lý do ghi nhận:</span> <em style="font-weight: 600;">"${reason || 'Không đến nhận ca / Vắng mặt không lý do'}"</em>
+            </div>
+          </div>
+
+          <div style="padding: 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: #334155;">
+            <span>Lương tuần sau khi cập nhật:</span> 
+            <strong style="color: #059669; font-size: 15px; margin-left: 6px;">${updatedTotalSalary.toLocaleString('vi-VN')} VNĐ</strong>
+          </div>
+
+          <p style="margin-top: 24px; font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">
+            Nếu có sự nhầm lẫn hoặc cần giải trình lý do chính đáng, bạn vui lòng liên hệ ngay với Quản lý cửa hàng để được xem xét điều chỉnh lại.<br>
+            <em>Thông báo tự động từ hệ thống Ca Làm Online.</em>
+          </p>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: `"${storeName} - Ca Làm Online" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: `[${storeName}] Thông báo: Ca làm "${shiftName}" ngày ${date} bị đánh giá Không hoàn thành`,
+      html: htmlContent,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[EMAIL SENT] Đã gửi thông báo trừ ca đến ${toEmail}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId, to: toEmail };
+  } catch (error) {
+    console.error(`[EMAIL ERROR] Lỗi gửi thông báo trừ ca đến ${toEmail}:`, error.message);
+    return { success: false, error: error.message, to: toEmail };
+  }
+};

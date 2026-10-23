@@ -2,14 +2,17 @@ import Store from '../models/Store.js';
 import StoreMember from '../models/StoreMember.js';
 import Shift from '../models/Shift.js';
 import Schedule from '../models/Schedule.js';
+import User from '../models/User.js';
 import {
   extractId,
   getTodayDateString,
   isShiftTimePassed,
+  isShiftStartedOrPassed,
   checkShiftOverlap,
   getCurrentVNTime,
   timeToMinutes,
 } from '../utils/timeScheduleHelpers.js';
+import { sendMissedShiftEmail } from './emailService.js';
 
 /**
  * Service: Xác thực bảo toàn ca đã qua (Immutability Validation)
@@ -201,12 +204,13 @@ export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
 
     if (!shift || !member) continue;
 
+    const isMissed = item.attendanceStatus === 'MISSED';
     const hours = shift.durationHours || 0;
     const wage =
       item.hourlyWage !== undefined && !isNaN(Number(item.hourlyWage))
         ? Number(item.hourlyWage)
         : member.hourlyWage || 0;
-    const totalPay = Math.round(hours * wage);
+    const totalPay = isMissed ? 0 : Math.round(hours * wage);
 
     processedAssignments.push({
       date: item.date,
@@ -216,6 +220,10 @@ export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
       hourlyWage: wage,
       hours: hours,
       totalPay: totalPay,
+      attendanceStatus: isMissed ? 'MISSED' : 'COMPLETED',
+      missedReason: item.missedReason || '',
+      evaluatedAt: item.evaluatedAt || null,
+      evaluatedBy: item.evaluatedBy || null,
     });
 
     // Gom nhóm tổng lương theo nhân viên
@@ -229,12 +237,19 @@ export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
         totalHours: 0,
         totalSalary: 0,
         shiftCount: 0,
+        completedShifts: 0,
+        missedShifts: 0,
         shifts: [],
       };
     }
 
-    salaryMap[uid].totalHours += hours;
-    salaryMap[uid].totalSalary += totalPay;
+    if (!isMissed) {
+      salaryMap[uid].totalHours += hours;
+      salaryMap[uid].totalSalary += totalPay;
+      salaryMap[uid].completedShifts += 1;
+    } else {
+      salaryMap[uid].missedShifts += 1;
+    }
     salaryMap[uid].shiftCount += 1;
     salaryMap[uid].shifts.push({
       date: item.date,
@@ -243,6 +258,8 @@ export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
       timeRange: `${shift.startTime} - ${shift.endTime}`,
       hours: hours,
       totalPay: totalPay,
+      attendanceStatus: isMissed ? 'MISSED' : 'COMPLETED',
+      missedReason: item.missedReason || '',
     });
   }
 
@@ -260,20 +277,28 @@ export const calculateSalarySummaryFromAssignments = (assignments) => {
   const salaryMap = {};
   assignments.forEach((a) => {
     if (!a.userId) return;
-    const uid = a.userId._id.toString();
+    const uid = a.userId._id ? a.userId._id.toString() : a.userId.toString();
     if (!salaryMap[uid]) {
       salaryMap[uid] = {
-        userId: a.userId._id,
-        fullName: a.userId.fullName,
-        email: a.userId.email,
+        userId: a.userId._id || a.userId,
+        fullName: a.userId.fullName || a.userId.name || 'Nhân viên',
+        email: a.userId.email || '',
         hourlyWage: a.hourlyWage,
         totalHours: 0,
         totalSalary: 0,
         shiftCount: 0,
+        completedShifts: 0,
+        missedShifts: 0,
       };
     }
-    salaryMap[uid].totalHours += a.hours;
-    salaryMap[uid].totalSalary += a.totalPay;
+    const isMissed = a.attendanceStatus === 'MISSED';
+    if (!isMissed) {
+      salaryMap[uid].totalHours += a.hours || 0;
+      salaryMap[uid].totalSalary += a.totalPay || 0;
+      salaryMap[uid].completedShifts += 1;
+    } else {
+      salaryMap[uid].missedShifts += 1;
+    }
     salaryMap[uid].shiftCount += 1;
   });
   return Object.values(salaryMap);
@@ -589,4 +614,136 @@ export const generateAutoSchedule = async ({
   ]);
 
   return { schedule, salarySummary };
+};
+
+/**
+ * Service: Đánh giá ca làm việc (Hoàn thành hoặc Không hoàn thành/Vắng)
+ * - Chỉ ca đang diễn ra hoặc đã kết thúc mới được đánh giá. Ca tương lai bị chặn.
+ * - Khi ca bị đánh dấu MISSED: lương ca đó thành 0, trừ khỏi tổng lương tuần của nhân viên.
+ * - Gửi email thông báo cho nhân viên nếu bị đánh dấu MISSED.
+ */
+export const evaluateShiftAttendance = async ({
+  storeId,
+  week,
+  year,
+  date,
+  shiftId,
+  userId,
+  attendanceStatus, // 'MISSED' hoặc 'COMPLETED'
+  missedReason,
+  evaluatorId,
+}) => {
+  const store = await Store.findById(storeId);
+  if (!store) {
+    const err = new Error('Không tìm thấy cửa hàng.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const shift = await Shift.findById(shiftId);
+  if (!shift) {
+    const err = new Error('Không tìm thấy thông tin ca làm việc.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // 1. Kiểm tra ràng buộc thời gian:
+  // "lưu ý chỉ ca đang diễn ra hoặc quá khứ mới được, còn ca tương lai thì không được quyền đánh giá."
+  if (!isShiftStartedOrPassed(date, shift)) {
+    const err = new Error(
+      `Không thể đánh giá ca làm việc trong tương lai: Ca "${shift.name}" (${shift.startTime} - ${shift.endTime}) ngày ${date} chưa diễn ra. Chỉ được đánh giá khi ca đang diễn ra hoặc đã kết thúc!`
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // 2. Tìm lịch làm việc của tuần
+  let schedule = await Schedule.findOne({
+    storeId,
+    week: Number(week),
+    year: Number(year),
+  });
+
+  if (!schedule) {
+    const err = new Error('Không tìm thấy lịch làm việc của tuần này.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // 3. Tìm phân công ca cụ thể
+  const uIdStr = String(userId);
+  const sIdStr = String(shiftId);
+  const targetAssignment = schedule.assignments.find(
+    (a) => a.date === date && extractId(a.shiftId) === sIdStr && extractId(a.userId) === uIdStr
+  );
+
+  if (!targetAssignment) {
+    const err = new Error('Nhân viên này không được phân công trong ca làm việc được chọn.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const newStatus = attendanceStatus === 'MISSED' ? 'MISSED' : 'COMPLETED';
+  targetAssignment.attendanceStatus = newStatus;
+  targetAssignment.missedReason = newStatus === 'MISSED' ? (missedReason || '').trim() : '';
+  targetAssignment.evaluatedAt = new Date();
+  targetAssignment.evaluatedBy = evaluatorId;
+
+  const hours = targetAssignment.hours || shift.durationHours || 4;
+  const wage = targetAssignment.hourlyWage || 20000;
+  const fullPay = Math.round(hours * wage);
+
+  if (newStatus === 'MISSED') {
+    targetAssignment.totalPay = 0;
+  } else {
+    targetAssignment.totalPay = fullPay;
+  }
+
+  await schedule.save();
+
+  // Populate lại để trả về frontend
+  await schedule.populate([
+    { path: 'assignments.shiftId', select: 'name startTime endTime durationHours color' },
+    { path: 'assignments.userId', select: 'fullName email systemRole' },
+    { path: 'assignments.evaluatedBy', select: 'fullName email' },
+  ]);
+
+  const salarySummary = calculateSalarySummaryFromAssignments(schedule.assignments);
+
+  // 4. Gửi email thông báo nếu đánh dấu MISSED
+  let emailResult = null;
+  if (newStatus === 'MISSED') {
+    const targetMember = await User.findById(userId);
+    const toEmail = targetMember?.email;
+    const employeeName = targetMember?.fullName || 'Nhân viên';
+
+    // Tính lương tuần sau cập nhật của nhân viên này
+    const empSalaryInfo = salarySummary.find(
+      (s) => String(s.userId._id || s.userId) === uIdStr
+    );
+    const updatedTotalSalary = empSalaryInfo ? empSalaryInfo.totalSalary : 0;
+
+    if (toEmail) {
+      emailResult = await sendMissedShiftEmail({
+        toEmail,
+        employeeName,
+        storeName: store.name,
+        shiftName: shift.name,
+        timeRange: `${shift.startTime} - ${shift.endTime}`,
+        date: targetAssignment.date,
+        dayOfWeek: targetAssignment.dayOfWeek,
+        deductedHours: hours,
+        deductedPay: fullPay,
+        reason: targetAssignment.missedReason,
+        updatedTotalSalary,
+      });
+    }
+  }
+
+  return {
+    schedule,
+    salarySummary,
+    updatedAssignment: targetAssignment,
+    emailResult,
+  };
 };
