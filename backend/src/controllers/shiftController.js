@@ -152,11 +152,8 @@ export const createShift = async (req, res) => {
       });
     }
 
-    // Tự động tính số giờ nếu caller không gửi hoặc gửi không hợp lệ
-    let hours = Number(durationHours);
-    if (isNaN(hours) || hours <= 0) {
-      hours = calculateHours(startTime.trim(), endTime.trim());
-    }
+    // Luôn luôn tự động tính số giờ chính xác dựa trên startTime và endTime
+    const hours = calculateHours(startTime.trim(), endTime.trim());
 
     // Kiểm tra không cho phép tạo ca có khung giờ trùng/giao thoa với ca đã tồn tại trong quán
     const existingShifts = await Shift.find({ storeId });
@@ -266,11 +263,8 @@ export const updateShift = async (req, res) => {
     if (endTime) shift.endTime = endTime.trim();
     if (color) shift.color = color;
 
-    if (durationHours !== undefined && !isNaN(Number(durationHours)) && Number(durationHours) > 0) {
-      shift.durationHours = Number(durationHours);
-    } else if (startTime || endTime) {
-      shift.durationHours = calculateHours(shift.startTime, shift.endTime);
-    }
+    // Luôn luôn tự động tính số giờ chính xác từ startTime và endTime của ca
+    shift.durationHours = calculateHours(shift.startTime, shift.endTime);
 
     await shift.save();
 

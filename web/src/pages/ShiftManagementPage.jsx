@@ -86,25 +86,32 @@ export const ShiftManagementPage = () => {
 
   const conflictingCount = Object.keys(conflictingShiftMap).length;
 
-  // Auto-calculate duration hours when start or end time changes
+  // Tự động tính số tiếng trực tiếp từ giờ bắt đầu và giờ kết thúc
   const calculateDuration = (start, end) => {
-    const [startH, startM] = start.split(':').map(Number);
-    const [endH, endM] = end.split(':').map(Number);
-    const startMin = startH * 60 + startM;
-    const endMin = endH * 60 + endM;
-    if (endMin <= startMin) return 0;
-    return Number(((endMin - startMin) / 60).toFixed(1));
+    if (!start || !end) return 0;
+    try {
+      const [startH, startM] = start.split(':').map(Number);
+      const [endH, endM] = end.split(':').map(Number);
+      const startMin = (startH || 0) * 60 + (startM || 0);
+      let endMin = (endH || 0) * 60 + (endM || 0);
+      if (endMin < startMin) {
+        endMin += 1440; // Ca đêm qua 0h
+      } else if (endMin === startMin) {
+        return 0;
+      }
+      return Math.round(((endMin - startMin) / 60) * 10) / 10;
+    } catch {
+      return 0;
+    }
   };
 
+  // Thời lượng (số tiếng) luôn được tính toán tự động theo thời gian thực từ startTime và endTime
+  const computedDuration = useMemo(() => {
+    return calculateDuration(shiftModal.startTime, shiftModal.endTime);
+  }, [shiftModal.startTime, shiftModal.endTime]);
+
   const handleTimeChange = (field, value) => {
-    setShiftModal((prev) => {
-      const next = { ...prev, [field]: value };
-      const duration = calculateDuration(
-        field === 'startTime' ? value : prev.startTime,
-        field === 'endTime' ? value : prev.endTime
-      );
-      return { ...next, durationHours: duration > 0 ? duration : prev.durationHours };
-    });
+    setShiftModal((prev) => ({ ...prev, [field]: value }));
   };
 
   // Open modal for Create
@@ -116,7 +123,6 @@ export const ShiftManagementPage = () => {
       name: `Ca ${shifts.length + 1}`,
       startTime: '08:00',
       endTime: '12:00',
-      durationHours: 4,
       color: '#EA701B'
     });
   };
@@ -130,7 +136,6 @@ export const ShiftManagementPage = () => {
       name: shift.name,
       startTime: shift.startTime,
       endTime: shift.endTime,
-      durationHours: shift.durationHours,
       color: shift.color || '#EA701B'
     });
   };
@@ -143,8 +148,11 @@ export const ShiftManagementPage = () => {
       return;
     }
 
-    if (shiftModal.durationHours <= 0) {
-      setFeedback({ type: 'error', message: 'Giờ kết thúc phải muộn hơn giờ bắt đầu.' });
+    if (computedDuration <= 0) {
+      setFeedback({
+        type: 'error',
+        message: 'Giờ kết thúc phải khác giờ bắt đầu (thời lượng ca phải lớn hơn 0 tiếng).'
+      });
       return;
     }
 
@@ -162,7 +170,7 @@ export const ShiftManagementPage = () => {
         name: shiftModal.name.trim(),
         startTime: shiftModal.startTime,
         endTime: shiftModal.endTime,
-        durationHours: Number(shiftModal.durationHours),
+        durationHours: computedDuration,
         color: shiftModal.color
       };
 
@@ -181,7 +189,6 @@ export const ShiftManagementPage = () => {
         name: '',
         startTime: '08:00',
         endTime: '12:00',
-        durationHours: 4,
         color: '#EA701B'
       });
       loadShifts();
@@ -423,19 +430,18 @@ export const ShiftManagementPage = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Số tiếng (giờ)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    max="24"
-                    value={shiftModal.durationHours}
-                    onChange={(e) =>
-                      setShiftModal((prev) => ({ ...prev, durationHours: Number(e.target.value) }))
-                    }
-                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#EA701B]"
-                    required
-                  />
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Thời lượng ca (tự động tính)
+                  </label>
+                  <div className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between text-xs font-mono font-bold text-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-[#EA701B]" />
+                      <span>{computedDuration > 0 ? `${computedDuration} tiếng` : '0 tiếng'}</span>
+                    </div>
+                    <span className="text-[10px] font-sans font-semibold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                      Tự động
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Màu phân biệt</label>
@@ -478,7 +484,7 @@ export const ShiftManagementPage = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!!modalConflict || shiftModal.durationHours <= 0}
+                  disabled={!!modalConflict || computedDuration <= 0}
                   className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed transition"
                 >
                   {shiftModal.isEdit ? 'Lưu cập nhật' : 'Tạo ca làm'}
