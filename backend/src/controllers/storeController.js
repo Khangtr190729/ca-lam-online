@@ -251,6 +251,13 @@ export const joinByCode = async (req, res) => {
 
     const cleanCode = inviteCode.toString().trim();
 
+    if (!/^\d{6}$/.test(cleanCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã mời không đúng định dạng (Mã mời phải gồm đúng 6 chữ số, ví dụ: 482915).',
+      });
+    }
+
     // 1. Tìm cửa hàng khớp mã mời
     const store = await Store.findOne({ 'inviteCode.code': cleanCode });
 

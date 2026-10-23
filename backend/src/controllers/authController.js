@@ -28,7 +28,7 @@ export const register = async (req, res) => {
   try {
     const { email, password, fullName, gender, age, systemRole } = req.body;
 
-    // 1. Kiểm tra các trường bắt buộc
+    // 1. Kiểm tra các trường bắt buộc và kiểu dữ liệu string chống NoSQL injection
     if (!email || !password || !fullName || !gender || age === undefined || !systemRole) {
       return res.status(400).json({
         success: false,
@@ -36,7 +36,24 @@ export const register = async (req, res) => {
       });
     }
 
-    // 2. Kiểm tra vai trò đăng ký (Chỉ được chọn ADMIN hoặc EMPLOYEE, không được chọn MANAGER)
+    if (typeof email !== 'string' || typeof password !== 'string' || typeof fullName !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Dữ liệu đầu vào không hợp lệ (phải là chuỗi ký tự hợp lệ).',
+      });
+    }
+
+    // 2. Kiểm tra định dạng Email hợp lệ bằng Regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Định dạng email không hợp lệ. Vui lòng nhập đúng định dạng (ví dụ: user@gmail.com).',
+      });
+    }
+
+    // 3. Kiểm tra vai trò đăng ký (Chỉ được chọn ADMIN hoặc EMPLOYEE, không được chọn MANAGER)
     const allowedRoles = ['ADMIN', 'EMPLOYEE'];
     if (!allowedRoles.includes(systemRole)) {
       return res.status(400).json({
@@ -45,16 +62,16 @@ export const register = async (req, res) => {
       });
     }
 
-    // 3. Kiểm tra độ tuổi hợp lệ (Từ 15 tuổi trở lên)
+    // 4. Kiểm tra độ tuổi hợp lệ (Từ 15 đến 100 tuổi)
     const parsedAge = Number(age);
     if (isNaN(parsedAge) || parsedAge < 15 || parsedAge > 100) {
       return res.status(400).json({
         success: false,
-        message: 'Tuổi không hợp lệ (Độ tuổi làm việc từ 15 đến 100 tuổi).',
+        message: 'Tuổi không hợp lệ (Độ tuổi làm việc hợp lệ từ 15 đến 100 tuổi).',
       });
     }
 
-    // 4. Kiểm tra giới tính (hỗ trợ cả có dấu và không dấu)
+    // 5. Kiểm tra giới tính (hỗ trợ cả có dấu và không dấu)
     const validGenders = { Nam: 'Nam', Nữ: 'Nữ', Nu: 'Nữ', Khác: 'Khác', Khac: 'Khác' };
     if (!validGenders[gender]) {
       return res.status(400).json({
@@ -64,16 +81,16 @@ export const register = async (req, res) => {
     }
     const normalizedGender = validGenders[gender];
 
-    // 5. Kiểm tra độ dài mật khẩu
+    // 6. Kiểm tra độ dài mật khẩu
     if (password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Mật khẩu phải có tối thiểu 6 ký tự.',
+        message: 'Mật khẩu phải có tối thiểu 6 ký tự để đảm bảo an toàn.',
       });
     }
 
-    // 6. Kiểm tra email đã tồn tại hay chưa
-    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    // 7. Kiểm tra email đã tồn tại hay chưa
+    const existingUser = await User.findOne({ email: cleanEmail });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -81,13 +98,13 @@ export const register = async (req, res) => {
       });
     }
 
-    // 7. Băm mật khẩu an toàn với bcrypt
+    // 8. Băm mật khẩu an toàn với bcrypt
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 8. Tạo user mới
+    // 9. Tạo user mới
     const newUser = await User.create({
-      email: email.toLowerCase().trim(),
+      email: cleanEmail,
       password: hashedPassword,
       fullName: fullName.trim(),
       gender: normalizedGender,
@@ -95,10 +112,10 @@ export const register = async (req, res) => {
       systemRole,
     });
 
-    // 9. Tạo token đăng nhập
+    // 10. Tạo token đăng nhập
     const token = generateToken(newUser);
 
-    // 10. Trả về kết quả (loại bỏ mật khẩu)
+    // 11. Trả về kết quả (loại bỏ mật khẩu)
     return res.status(201).json({
       success: true,
       message: 'Đăng ký tài khoản thành công!',
@@ -131,16 +148,18 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 1. Kiểm tra đầu vào
-    if (!email || !password) {
+    // 1. Kiểm tra đầu vào và kiểu dữ liệu string chống NoSQL injection
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng nhập đầy đủ Email và Mật khẩu.',
+        message: 'Vui lòng nhập đầy đủ Email và Mật khẩu hợp lệ.',
       });
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+
     // 2. Tìm người dùng theo email
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await User.findOne({ email: cleanEmail });
     if (!user) {
       return res.status(401).json({
         success: false,

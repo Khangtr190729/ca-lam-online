@@ -118,10 +118,19 @@ export const createShift = async (req, res) => {
       });
     }
 
+    // Kiểm tra định dạng giờ HH:mm (00:00 đến 23:59)
+    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (!timeRegex.test(startTime.trim()) || !timeRegex.test(endTime.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Định dạng giờ không hợp lệ. Vui lòng nhập theo định dạng HH:mm (ví dụ: 07:00, 11:30, 22:00).',
+      });
+    }
+
     // Tự động tính số giờ nếu caller không gửi hoặc gửi không hợp lệ
     let hours = Number(durationHours);
     if (isNaN(hours) || hours <= 0) {
-      hours = calculateHours(startTime, endTime);
+      hours = calculateHours(startTime.trim(), endTime.trim());
     }
 
     const newShift = await Shift.create({
@@ -175,6 +184,20 @@ export const updateShift = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy ca làm việc này.',
+      });
+    }
+
+    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (startTime && !timeRegex.test(startTime.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Giờ bắt đầu không đúng định dạng HH:mm (ví dụ: 07:00).',
+      });
+    }
+    if (endTime && !timeRegex.test(endTime.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Giờ kết thúc không đúng định dạng HH:mm (ví dụ: 11:30).',
       });
     }
 

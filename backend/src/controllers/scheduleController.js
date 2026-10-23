@@ -224,6 +224,21 @@ export const saveDraftSchedule = async (req, res) => {
       });
     }
 
+    const parsedWeek = Number(week);
+    const parsedYear = Number(year);
+    if (isNaN(parsedWeek) || parsedWeek < 1 || parsedWeek > 53) {
+      return res.status(400).json({
+        success: false,
+        message: 'Số tuần không hợp lệ (Tuần trong năm từ 1 đến 53).',
+      });
+    }
+    if (isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Năm không hợp lệ (Năm từ 2000 đến 2100).',
+      });
+    }
+
     const access = await verifyStoreAccess(storeId, userId);
     if (access.error) {
       return res.status(404).json({ success: false, message: access.error });
