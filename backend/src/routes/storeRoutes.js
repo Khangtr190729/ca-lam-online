@@ -10,6 +10,7 @@ import {
 import { protect } from '../middlewares/authMiddleware.js';
 import memberRoutes from './memberRoutes.js';
 import shiftRoutes from './shiftRoutes.js';
+import { storeScheduleRouter } from './scheduleRoutes.js';
 
 const router = express.Router();
 
@@ -21,6 +22,9 @@ router.use('/:storeId/members', memberRoutes);
 
 // Nhánh con quản lý Slot ca làm việc: /api/stores/:storeId/shifts
 router.use('/:storeId/shifts', shiftRoutes);
+
+// Nhánh con xếp lịch và xuất bản gửi email: /api/stores/:storeId/schedules
+router.use('/:storeId/schedules', storeScheduleRouter);
 
 // 1. Tạo cửa hàng mới (ADMIN)
 router.post('/', createStore);

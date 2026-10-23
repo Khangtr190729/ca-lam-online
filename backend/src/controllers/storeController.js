@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Store from '../models/Store.js';
 import StoreMember from '../models/StoreMember.js';
 import User from '../models/User.js';
+import { sendStoreInviteEmail } from '../services/emailService.js';
 
 /**
  * @desc    Tạo cửa hàng mới (Chỉ dành cho Chủ quán - ADMIN)
@@ -421,6 +422,16 @@ export const inviteById = async (req, res) => {
         hourlyWage: parsedWage,
         status: 'ACTIVE',
       });
+    }
+
+    // Gửi email thư mời thông báo cho nhân viên
+    if (targetUser.email) {
+      const codeToSend = store.inviteCode && store.inviteCode.code ? store.inviteCode.code : 'ĐÃ ĐƯỢC THÊM TRỰC TIẾP';
+      sendStoreInviteEmail({
+        toEmail: targetUser.email,
+        storeName: store.name,
+        inviteCode: codeToSend,
+      }).catch((e) => console.error('Lỗi gửi mail mời:', e.message));
     }
 
     return res.status(200).json({

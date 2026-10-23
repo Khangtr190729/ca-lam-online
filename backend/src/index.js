@@ -5,6 +5,7 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import storeRoutes from './routes/storeRoutes.js';
+import { personalScheduleRouter } from './routes/scheduleRoutes.js';
 
 // Nạp cấu hình từ file .env
 dotenv.config();
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/stores', storeRoutes);
+app.use('/api/schedules', personalScheduleRouter);
 
 // Route kiểm tra trạng thái server
 app.get('/', (req, res) => {
