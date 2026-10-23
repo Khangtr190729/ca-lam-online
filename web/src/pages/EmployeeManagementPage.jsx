@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Users,
   Search,
@@ -198,13 +199,13 @@ export const EmployeeManagementPage = () => {
           </div>
 
           {isAdmin && (
-            <a
-              href="/store-management"
+            <Link
+              to="/store-management"
               className="flex items-center gap-1.5 px-3.5 py-2 bg-[#EA701B] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#D55E0D] transition"
             >
               <UserPlus className="w-4 h-4" />
               <span>Mời nhân viên</span>
-            </a>
+            </Link>
           )}
         </div>
       </div>

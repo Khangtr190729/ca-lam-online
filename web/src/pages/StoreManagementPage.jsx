@@ -14,13 +14,28 @@ import {
   AlertCircle,
   X,
   MapPin,
-  ShieldCheck
+  ShieldCheck,
+  Store as StoreIcon
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { storeApi } from '../services/api';
 
 export const StoreManagementPage = () => {
   const { store, refreshUser } = useAuth();
+
+  // Helper to safely extract 6-digit code string from store data
+  const extractCode = (s) => {
+    if (!s?.inviteCode) return '';
+    if (typeof s.inviteCode === 'object') return s.inviteCode.code || '';
+    if (typeof s.inviteCode === 'string') return s.inviteCode;
+    return '';
+  };
+
+  const extractExpires = (s) => {
+    if (!s?.inviteCode) return s?.inviteExpires || null;
+    if (typeof s.inviteCode === 'object') return s.inviteCode.expiresAt || null;
+    return s.inviteExpires || null;
+  };
 
   // Store profile form
   const [storeForm, setStoreForm] = useState({
@@ -29,9 +44,13 @@ export const StoreManagementPage = () => {
   });
   const [savingStore, setSavingStore] = useState(false);
 
+  // Initial store creation (if not created yet)
+  const [newStoreForm, setNewStoreForm] = useState({ name: '', address: '' });
+  const [creatingStore, setCreatingStore] = useState(false);
+
   // Invite code state
-  const [inviteCode, setInviteCode] = useState(store?.inviteCode || '');
-  const [inviteExpires, setInviteExpires] = useState(store?.inviteExpires || null);
+  const [inviteCode, setInviteCode] = useState(() => extractCode(store));
+  const [inviteExpires, setInviteExpires] = useState(() => extractExpires(store));
   const [generatingCode, setGeneratingCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [remainingTime, setRemainingTime] = useState('');
@@ -47,15 +66,15 @@ export const StoreManagementPage = () => {
 
   const [feedback, setFeedback] = useState(null);
 
-  // Sync store data when available
+  // Sync store data when store updates
   useEffect(() => {
     if (store) {
       setStoreForm({
         name: store.name || '',
         address: store.address || ''
       });
-      if (store.inviteCode) setInviteCode(store.inviteCode);
-      if (store.inviteExpires) setInviteExpires(store.inviteExpires);
+      setInviteCode(extractCode(store));
+      setInviteExpires(extractExpires(store));
     }
   }, [store]);
 
@@ -84,6 +103,25 @@ export const StoreManagementPage = () => {
     return () => clearInterval(interval);
   }, [inviteExpires]);
 
+  // Handle Initial Store Creation
+  const handleCreateStore = async (e) => {
+    e.preventDefault();
+    if (!newStoreForm.name.trim()) return;
+    try {
+      setCreatingStore(true);
+      setFeedback(null);
+      const res = await storeApi.createStore(newStoreForm);
+      if (res.success) {
+        setFeedback({ type: 'success', message: 'Tạo cửa hàng thành công!' });
+        await refreshUser();
+      }
+    } catch (err) {
+      setFeedback({ type: 'error', message: err.message || 'Lỗi khi tạo cửa hàng' });
+    } finally {
+      setCreatingStore(false);
+    }
+  };
+
   // Update store info
   const handleSaveStore = async (e) => {
     e.preventDefault();
@@ -108,9 +146,11 @@ export const StoreManagementPage = () => {
       setGeneratingCode(true);
       setFeedback(null);
       const res = await storeApi.generateInviteCode();
-      if (res.success && res.data) {
-        setInviteCode(res.data.inviteCode);
-        setInviteExpires(res.data.inviteExpires);
+      if (res.success) {
+        const code = res.inviteCode || res.data?.inviteCode || '';
+        const expires = res.expiresAt || res.data?.expiresAt || null;
+        setInviteCode(String(code));
+        setInviteExpires(expires);
         setFeedback({
           type: 'success',
           message: 'Đã tạo mã mời 6 chữ số mới có hiệu lực trong 60 phút!'
@@ -126,7 +166,7 @@ export const StoreManagementPage = () => {
 
   // Copy code to clipboard
   const handleCopyCode = () => {
-    if (!inviteCode) return;
+    if (!inviteCode || typeof inviteCode !== 'string') return;
     navigator.clipboard.writeText(inviteCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -172,6 +212,83 @@ export const StoreManagementPage = () => {
       setInvitingDirect(false);
     }
   };
+
+  // IF NO STORE EXISTS YET: Prompt to create one
+  if (!store) {
+    return (
+      <div className="max-w-xl mx-auto py-10 px-4">
+        <div className="bg-white p-8 rounded-3xl border border-orange-200/80 shadow-md space-y-4 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-orange-100 text-[#EA701B] flex items-center justify-center mx-auto">
+            <StoreIcon className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-extrabold text-slate-900">
+            Tạo cửa hàng của bạn
+          </h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Bạn cần tạo cửa hàng trước khi có thể sinh mã mời hoặc quản lý nhân sự.
+          </p>
+
+          {feedback && (
+            <div
+              className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                feedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}
+            >
+              {feedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              )}
+              <span>{feedback.message}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleCreateStore} className="space-y-3 pt-2 text-left">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Tên cửa hàng / Quán <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Ví dụ: The Coffee House — Cơ sở 1"
+                value={newStoreForm.name}
+                onChange={(e) => setNewStoreForm({ ...newStoreForm, name: e.target.value })}
+                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#EA701B]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Địa chỉ quán
+              </label>
+              <input
+                type="text"
+                placeholder="Ví dụ: 123 Nguyễn Huệ, Quận 1, TP. HCM"
+                value={newStoreForm.address}
+                onChange={(e) => setNewStoreForm({ ...newStoreForm, address: e.target.value })}
+                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#EA701B]"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={creatingStore}
+              className="w-full mt-3 py-3 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl transition shadow-md shadow-orange-500/20 disabled:opacity-50"
+            >
+              {creatingStore ? 'Đang tạo cửa hàng...' : 'Bắt đầu sử dụng Ca Làm Online'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Safe string representation of invite code
+  const hasValidCode =
+    Boolean(inviteCode) &&
+    typeof inviteCode === 'string' &&
+    inviteCode.trim().length === 6;
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -247,7 +364,7 @@ export const StoreManagementPage = () => {
 
         {/* Big 6-digit Code Display */}
         <div className="bg-gradient-to-br from-[#FFF0E5] via-[#FFF7F0] to-orange-50/50 p-6 rounded-2xl border border-orange-200/70 text-center space-y-3">
-          {inviteCode ? (
+          {hasValidCode ? (
             <>
               <div className="text-xs font-bold text-[#EA701B] uppercase tracking-wider">
                 Mã mời hiện tại của quán
@@ -289,14 +406,14 @@ export const StoreManagementPage = () => {
           ) : (
             <div className="py-4">
               <p className="text-xs text-slate-500 mb-3">
-                Chưa có mã mời hoạt động. Nhấn nút bên dưới để tạo mã 6 chữ số có hiệu lực 60 phút.
+                Chưa có mã mời hoạt động hoặc mã cũ đã hết hạn. Nhấn nút bên dưới để tạo mã 6 chữ số có hiệu lực 60 phút.
               </p>
               <button
                 type="button"
                 onClick={handleGenerateCode}
                 className="px-5 py-2.5 bg-[#EA701B] text-white text-xs font-bold rounded-xl shadow-xs"
               >
-                Tạo mã mời đầu tiên
+                Tạo mã mời 6 chữ số ngay
               </button>
             </div>
           )}
