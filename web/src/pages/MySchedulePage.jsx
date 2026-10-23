@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate, Navigate } from 'react-router-dom';
 import {
   Calendar,
   Clock,
@@ -17,7 +18,8 @@ import {
   Sparkles,
   ArrowRight,
   Info,
-  Copy
+  Copy,
+  LayoutDashboard
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { scheduleApi, storeApi, userApi } from '../services/api';
@@ -32,7 +34,19 @@ import {
 } from '../utils/formatters';
 
 export const MySchedulePage = () => {
-  const { user, store, refreshUser, logout } = useAuth();
+  const { user, store, roleInStore, refreshUser, logout } = useAuth();
+  const navigate = useNavigate();
+
+  // Chủ cửa hàng (ADMIN) không được phân ca và không có lịch cá nhân -> Redirect ngay về /dashboard
+  const isOwner =
+    roleInStore === 'ADMIN' ||
+    user?.role === 'ADMIN' ||
+    (store?.ownerId && String(store.ownerId) === String(user?._id));
+  const isManager = roleInStore === 'MANAGER' || user?.role === 'MANAGER';
+
+  if (isOwner) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   // Navigation tab: 'schedule' | 'notifications' | 'profile'
   const [activeTab, setActiveTab] = useState('schedule');
@@ -332,6 +346,26 @@ export const MySchedulePage = () => {
       ) : (
         /* CASE 2: Employee Is A Member of Store */
         <div className="flex-1 flex flex-col justify-between overflow-hidden">
+          {/* Mobile Top Bar for Manager (quick jump back to dashboard) */}
+          {isManager && (
+            <div className="md:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between shadow-xs mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                  QUẢN LÝ
+                </span>
+                <span className="text-xs font-bold text-slate-200">Lịch làm của bạn</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-1.5 px-3 py-1 bg-white/10 hover:bg-white/20 text-orange-300 rounded-lg text-xs font-bold transition"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>Trang Quản lý</span>
+              </button>
+            </div>
+          )}
+
           {/* Desktop Top Header & Tabs (Visible only on md: screens and above) */}
           <div className="hidden md:flex items-center justify-between bg-white px-6 py-3.5 rounded-2xl border border-slate-200/80 shadow-xs mb-4">
             <div className="flex items-center gap-3">
@@ -339,8 +373,17 @@ export const MySchedulePage = () => {
                 <Store className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-sm font-extrabold text-slate-900">{store.name}</h1>
-                <p className="text-[11px] text-slate-500">Kênh nhân viên</p>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-sm font-extrabold text-slate-900">{store.name}</h1>
+                  {isManager && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                      Quản lý
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {isManager ? 'Lịch làm việc cá nhân của Quản lý' : 'Kênh nhân viên'}
+                </p>
               </div>
             </div>
 
@@ -386,8 +429,20 @@ export const MySchedulePage = () => {
               </button>
             </div>
 
-            {/* Right: User Email & Logout */}
+            {/* Right: Return to Management (if Manager), User Email & Logout */}
             <div className="flex items-center gap-3">
+              {isManager && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard')}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-xs"
+                  title="Quay lại Bảng điều khiển quản lý"
+                >
+                  <LayoutDashboard className="w-4 h-4 text-orange-400" />
+                  <span>Về trang Quản lý</span>
+                </button>
+              )}
+
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl">
                 <span className="text-xs font-semibold text-slate-700 truncate max-w-[200px]" title={user?.email}>
                   {user?.email}
@@ -793,6 +848,18 @@ export const MySchedulePage = () => {
               <User className="w-5 h-5" />
               <span className="text-[10px] font-bold mt-1">Cá nhân</span>
             </button>
+
+            {isManager && (
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="flex flex-col items-center py-1 text-slate-500 hover:text-[#EA701B] transition"
+                title="Về Trang Quản lý"
+              >
+                <LayoutDashboard className="w-5 h-5" />
+                <span className="text-[10px] font-bold mt-1">Quản lý</span>
+              </button>
+            )}
           </div>
         </div>
       )}

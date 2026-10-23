@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   CalendarDays,
+  CalendarClock,
   Users,
   Clock,
   Store,
@@ -38,14 +39,19 @@ export const WebLayout = () => {
   };
 
   const roleInfo = getRoleLabel(roleInStore || user?.role);
-  const isAdmin = roleInStore === 'ADMIN' || user?.role === 'ADMIN';
+  const isOwner =
+    roleInStore === 'ADMIN' ||
+    user?.role === 'ADMIN' ||
+    (store?.ownerId && String(store.ownerId) === String(user?._id));
+  const isShiftEligible = !isOwner; // Quản lý có thể được phân ca và có lịch cá nhân
 
   const navItems = [
     { name: 'Tổng quan', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Lịch làm việc', path: '/schedules', icon: CalendarDays },
+    ...(isShiftEligible ? [{ name: 'Lịch của tôi', path: '/my-schedule', icon: CalendarClock }] : []),
     { name: 'Nhân viên', path: '/employees', icon: Users },
     { name: 'Ca làm', path: '/shifts', icon: Clock },
-    ...(isAdmin ? [{ name: 'Cửa hàng', path: '/store-management', icon: Store }] : []),
+    ...(isOwner ? [{ name: 'Cửa hàng', path: '/store-management', icon: Store }] : []),
     { name: 'Hồ sơ cá nhân', path: '/profile', icon: UserCheck }
   ];
 
@@ -147,6 +153,17 @@ export const WebLayout = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Quick Link to Personal Schedule for Manager */}
+            {isShiftEligible && (
+              <NavLink
+                to="/my-schedule"
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#EA701B] border border-orange-200/80 text-xs font-bold transition shadow-xs"
+                title="Xem ca làm việc cá nhân của bạn"
+              >
+                <CalendarClock className="w-4 h-4" />
+                <span className="hidden sm:inline">Lịch của tôi</span>
+              </NavLink>
+            )}
 
             {/* Profile Dropdown */}
             <div className="relative">
@@ -202,7 +219,16 @@ export const WebLayout = () => {
                   >
                     Hồ sơ cá nhân
                   </NavLink>
-                  {isAdmin && (
+                  {isShiftEligible && (
+                    <NavLink
+                      to="/my-schedule"
+                      className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-[#EA701B] hover:bg-orange-50 transition"
+                    >
+                      <CalendarClock className="w-3.5 h-3.5" />
+                      Lịch làm của tôi
+                    </NavLink>
+                  )}
+                  {isOwner && (
                     <NavLink
                       to="/store-management"
                       className="block px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-[#EA701B]"

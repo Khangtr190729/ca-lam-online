@@ -12,9 +12,9 @@ import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import MySchedulePage from '../pages/MySchedulePage';
 
-// Protected Route Guard
-const ProtectedRoute = ({ children, adminOnly = false }) => {
-  const { user, roleInStore, loading } = useAuth();
+// Route Guard for Admin & Manager (Web Shell)
+const ManagementRoute = ({ children, adminOnly = false }) => {
+  const { user, store, roleInStore, loading } = useAuth();
 
   if (loading) {
     return (
@@ -28,8 +28,49 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && roleInStore !== 'ADMIN' && user.role !== 'ADMIN') {
-    return <Navigate to="/schedules" replace />;
+  const isStoreOwner =
+    roleInStore === 'ADMIN' ||
+    user.role === 'ADMIN' ||
+    (store?.ownerId && String(store.ownerId) === String(user._id));
+  const isManager = roleInStore === 'MANAGER' || user.role === 'MANAGER';
+
+  // Regular employee cannot access management pages
+  if (!isStoreOwner && !isManager) {
+    return <Navigate to="/my-schedule" replace />;
+  }
+
+  // Admin-only pages like StoreManagementPage
+  if (adminOnly && !isStoreOwner) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Route Guard for Personal Schedule (/my-schedule)
+// Chủ cửa hàng (ADMIN) tuyệt đối không được phân ca và không có lịch cá nhân -> cấm vào, redirect về /dashboard
+const PersonalScheduleRoute = ({ children }) => {
+  const { user, store, roleInStore, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FFF7F0] flex items-center justify-center text-sm font-semibold text-slate-500">
+        Đang tải dữ liệu Ca Làm Online...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const isStoreOwner =
+    roleInStore === 'ADMIN' ||
+    user.role === 'ADMIN' ||
+    (store?.ownerId && String(store.ownerId) === String(user._id));
+
+  if (isStoreOwner) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
@@ -59,7 +100,7 @@ export const AppRoutes = () => {
             user.role === 'EMPLOYEE' ? (
               <Navigate to="/my-schedule" replace />
             ) : (
-              <Navigate to="/schedules" replace />
+              <Navigate to="/dashboard" replace />
             )
           ) : (
             <LoginPage />
@@ -73,7 +114,7 @@ export const AppRoutes = () => {
             user.role === 'EMPLOYEE' ? (
               <Navigate to="/my-schedule" replace />
             ) : (
-              <Navigate to="/schedules" replace />
+              <Navigate to="/dashboard" replace />
             )
           ) : (
             <RegisterPage />
@@ -81,24 +122,24 @@ export const AppRoutes = () => {
         }
       />
 
-      {/* Employee Mobile-first Experience */}
+      {/* Personal Schedule View (For Employee & Manager - Store Owner is blocked) */}
       <Route
         path="/my-schedule"
         element={
-          <ProtectedRoute>
+          <PersonalScheduleRoute>
             <div className="min-h-screen flex flex-col bg-[#FFF7F0]">
               <MySchedulePage />
             </div>
-          </ProtectedRoute>
+          </PersonalScheduleRoute>
         }
       />
 
       {/* Main Web App Shell for Admin & Manager */}
       <Route
         element={
-          <ProtectedRoute>
+          <ManagementRoute>
             <WebLayout />
-          </ProtectedRoute>
+          </ManagementRoute>
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
@@ -108,9 +149,9 @@ export const AppRoutes = () => {
         <Route
           path="/store-management"
           element={
-            <ProtectedRoute adminOnly>
+            <ManagementRoute adminOnly>
               <StoreManagementPage />
-            </ProtectedRoute>
+            </ManagementRoute>
           }
         />
         <Route path="/profile" element={<ProfilePage />} />
@@ -124,7 +165,7 @@ export const AppRoutes = () => {
             user.role === 'EMPLOYEE' ? (
               <Navigate to="/my-schedule" replace />
             ) : (
-              <Navigate to="/schedules" replace />
+              <Navigate to="/dashboard" replace />
             )
           ) : (
             <Navigate to="/login" replace />
