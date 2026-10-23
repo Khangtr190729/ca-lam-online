@@ -78,11 +78,15 @@ export const shiftApi = {
 export const scheduleApi = {
   getWeeklySchedule: (storeId, week, year) =>
     api.get(`/stores/${storeId}/schedules?week=${week}&year=${year}`),
+  getWeekSchedule: (storeId, week, year) =>
+    api.get(`/stores/${storeId}/schedules?week=${week}&year=${year}`),
   saveDraft: (storeId, payload) =>
     api.post(`/stores/${storeId}/schedules/save-draft`, payload),
   autoGenerate: (storeId, payload) =>
     api.post(`/stores/${storeId}/schedules/auto-generate`, payload),
   publish: (storeId, payload) =>
+    api.post(`/stores/${storeId}/schedules/publish`, payload),
+  publishSchedule: (storeId, payload) =>
     api.post(`/stores/${storeId}/schedules/publish`, payload),
   getMySchedule: (week, year) =>
     api.get(`/schedules/my-schedule?week=${week}&year=${year}`)
