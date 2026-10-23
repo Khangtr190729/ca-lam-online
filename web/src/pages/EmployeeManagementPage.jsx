@@ -391,9 +391,9 @@ export const EmployeeManagementPage = () => {
 
       {/* MODAL: Edit Hourly Wage */}
       {wageModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden">
-            <div className="p-5 bg-[#FFF0E5] border-b border-orange-100 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-backdrop-fade">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-modal-pop">
+            <div className="p-5 bg-[#FFF0E5] border-b border-orange-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-[#EA701B]" />
                 <h3 className="font-bold text-slate-900 text-sm">Cập nhật lương theo giờ</h3>
@@ -453,9 +453,9 @@ export const EmployeeManagementPage = () => {
 
       {/* MODAL: Edit Role (Promote / Demote) */}
       {roleModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden">
-            <div className="p-5 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-backdrop-fade">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-modal-pop">
+            <div className="p-5 bg-blue-50 border-b border-blue-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-blue-600" />
                 <h3 className="font-bold text-slate-900 text-sm">Thay đổi vai trò quản lý</h3>
@@ -510,9 +510,9 @@ export const EmployeeManagementPage = () => {
 
       {/* MODAL: Edit Employment Type */}
       {typeModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden">
-            <div className="p-5 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-backdrop-fade">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-modal-pop">
+            <div className="p-5 bg-purple-50 border-b border-purple-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Briefcase className="w-5 h-5 text-purple-600" />
                 <h3 className="font-bold text-slate-900 text-sm">Hình thức làm việc</h3>
@@ -567,8 +567,8 @@ export const EmployeeManagementPage = () => {
 
       {/* MODAL: Remove Member Confirmation */}
       {removeModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-backdrop-fade">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-modal-pop">
             <div className="p-6 text-center space-y-3">
               <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 mx-auto flex items-center justify-center">
                 <Trash2 className="w-6 h-6" />

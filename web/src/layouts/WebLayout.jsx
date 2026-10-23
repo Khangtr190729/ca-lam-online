@@ -91,13 +91,13 @@ export const WebLayout = () => {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-150 ${
+                className={`flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ease-out btn-press group ${
                   isActive
-                    ? 'bg-[#EA701B] text-white shadow-md shadow-orange-500/20'
-                    : 'text-slate-600 hover:bg-[#FFF0E5] hover:text-[#EA701B]'
+                    ? 'bg-[#EA701B] text-white shadow-lg shadow-orange-500/25 translate-x-1.5'
+                    : 'text-slate-600 hover:bg-[#FFF0E5] hover:text-[#EA701B] hover:translate-x-1.5'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                <Icon className={`w-5 h-5 transition-transform duration-200 group-hover:scale-115 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                 <span>{item.name}</span>
               </NavLink>
             );
@@ -184,7 +184,7 @@ export const WebLayout = () => {
 
               {userMenuOpen && (
                 <div
-                  className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-1 z-50 animate-fade-in"
+                  className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-1 z-50 animate-dropdown-enter"
                   onClick={() => setUserMenuOpen(false)}
                 >
                   <div className="px-4 py-2.5 border-b border-slate-100">
@@ -196,7 +196,7 @@ export const WebLayout = () => {
                       <button
                         type="button"
                         onClick={handleCopyEmail}
-                        className="text-[10px] font-bold text-[#EA701B] hover:underline flex items-center gap-1 shrink-0"
+                        className="text-[10px] font-bold text-[#EA701B] hover:underline flex items-center gap-1 shrink-0 btn-press"
                         title="Sao chép Email"
                       >
                         {copiedEmail ? (
@@ -215,14 +215,14 @@ export const WebLayout = () => {
                   </div>
                   <NavLink
                     to="/profile"
-                    className="block px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-[#EA701B]"
+                    className="block px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-[#EA701B] transition-colors"
                   >
                     Hồ sơ cá nhân
                   </NavLink>
                   {isShiftEligible && (
                     <NavLink
                       to="/my-schedule"
-                      className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-[#EA701B] hover:bg-orange-50 transition"
+                      className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-[#EA701B] hover:bg-orange-50 transition-colors"
                     >
                       <CalendarClock className="w-3.5 h-3.5" />
                       Lịch làm của tôi
@@ -231,7 +231,7 @@ export const WebLayout = () => {
                   {isOwner && (
                     <NavLink
                       to="/store-management"
-                      className="block px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-[#EA701B]"
+                      className="block px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-[#EA701B] transition-colors"
                     >
                       Cài đặt cửa hàng
                     </NavLink>
@@ -239,7 +239,7 @@ export const WebLayout = () => {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors btn-press"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     Đăng xuất
@@ -252,14 +252,14 @@ export const WebLayout = () => {
 
         {/* Mobile slide-out nav drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-xs flex">
-            <div className="w-64 bg-white h-full shadow-2xl flex flex-col p-4 animate-fade-in">
+          <div className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex animate-backdrop-fade">
+            <div className="w-64 bg-white h-full shadow-2xl flex flex-col p-4 animate-modal-pop">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <Logo size="sm" />
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  className="p-1 text-slate-400 hover:text-slate-600 btn-press"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -271,8 +271,8 @@ export const WebLayout = () => {
                     to={item.path}
                     onClick={() => setMobileMenuOpen(false)}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${
-                        isActive ? 'bg-[#EA701B] text-white' : 'text-slate-600 hover:bg-orange-50'
+                      `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 btn-press ${
+                        isActive ? 'bg-[#EA701B] text-white shadow-md' : 'text-slate-600 hover:bg-orange-50'
                       }`
                     }
                   >
@@ -284,7 +284,7 @@ export const WebLayout = () => {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex items-center gap-2 text-xs font-semibold text-red-600 p-2"
+                className="flex items-center gap-2 text-xs font-semibold text-red-600 p-2 btn-press"
               >
                 <LogOut className="w-4 h-4" />
                 Đăng xuất
@@ -294,9 +294,11 @@ export const WebLayout = () => {
           </div>
         )}
 
-        {/* Outlet Content */}
+        {/* Outlet Content with Smooth Page Transition */}
         <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
-          <Outlet />
+          <div key={location.pathname} className="animate-page-enter">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

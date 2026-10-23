@@ -230,7 +230,7 @@ export const ShiftManagementPage = () => {
         <button
           type="button"
           onClick={handleOpenCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl transition shadow-xs"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl transition shadow-xs btn-press hover-lift"
         >
           <Plus className="w-4 h-4" />
           <span>Thêm ca làm mới</span>
@@ -306,10 +306,10 @@ export const ShiftManagementPage = () => {
             return (
               <div
                 key={shift._id}
-                className={`bg-white rounded-2xl border p-5 shadow-xs transition space-y-4 ${
+                className={`bg-white rounded-2xl border p-5 shadow-xs hover-lift transition-all duration-200 space-y-4 ${
                   hasConflict
                     ? 'border-amber-300 ring-1 ring-amber-300/60 bg-amber-50/10'
-                    : 'border-slate-200/80 hover:border-orange-200'
+                    : 'border-slate-200/80 hover:border-orange-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -372,9 +372,9 @@ export const ShiftManagementPage = () => {
 
       {/* CREATE / EDIT SHIFT MODAL */}
       {shiftModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden">
-            <div className="p-5 bg-[#FFF0E5] border-b border-orange-100 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-backdrop-fade">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-modal-pop">
+            <div className="p-5 bg-[#FFF0E5] border-b border-orange-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-[#EA701B]" />
                 <h3 className="font-bold text-slate-900 text-sm">
@@ -384,13 +384,13 @@ export const ShiftManagementPage = () => {
               <button
                 type="button"
                 onClick={() => setShiftModal((prev) => ({ ...prev, isOpen: false }))}
-                className="p-1 text-slate-400 hover:text-slate-600"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-orange-100/60 btn-press"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveShift} className="p-6 space-y-4">
+            <form onSubmit={handleSaveShift} className="p-6 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Tên ca làm việc <span className="text-red-500">*</span>
@@ -497,8 +497,8 @@ export const ShiftManagementPage = () => {
 
       {/* DELETE CONFIRMATION MODAL */}
       {deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-backdrop-fade">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden my-auto animate-modal-pop">
             <div className="p-6 text-center space-y-3">
               <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 mx-auto flex items-center justify-center">
                 <Trash2 className="w-6 h-6" />
@@ -512,14 +512,14 @@ export const ShiftManagementPage = () => {
               <button
                 type="button"
                 onClick={() => setDeleteModal({ isOpen: false, shift: null })}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl"
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl btn-press"
               >
                 Hủy
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-xs"
+                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-xs btn-press hover-lift"
               >
                 Xóa ca làm
               </button>

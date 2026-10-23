@@ -194,7 +194,7 @@ export const DashboardPage = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Stat 1: Nhân viên */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between hover-lift cursor-default group transition-all duration-200">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nhân sự cửa hàng</p>
               <h3 className="text-2xl font-extrabold text-slate-900 font-mono mt-1">
@@ -202,13 +202,13 @@ export const DashboardPage = () => {
               </h3>
               <span className="text-[11px] text-emerald-600 font-semibold mt-1 inline-block">Đang hoạt động</span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#EA701B] flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#EA701B] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200">
               <Users className="w-6 h-6" />
             </div>
           </div>
 
           {/* Stat 2: Ca tuần này */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between hover-lift cursor-default group transition-all duration-200">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ca đã phân tuần này</p>
               <h3 className="text-2xl font-extrabold text-slate-900 font-mono mt-1">
@@ -218,13 +218,13 @@ export const DashboardPage = () => {
                 Tuần {week}/{year}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200">
               <CalendarDays className="w-6 h-6" />
             </div>
           </div>
 
           {/* Stat 3: Dự toán lương tuần */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between hover-lift cursor-default group transition-all duration-200">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dự toán lương tuần</p>
               <h3 className="text-xl font-extrabold text-[#EA701B] font-mono mt-1">
@@ -232,13 +232,13 @@ export const DashboardPage = () => {
               </h3>
               <span className="text-[11px] text-slate-500 font-medium mt-1 inline-block">Tính theo giờ phân ca</span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200">
               <DollarSign className="w-6 h-6" />
             </div>
           </div>
 
           {/* Stat 4: Trạng thái lịch */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between hover-lift cursor-default group transition-all duration-200">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Trạng thái lịch tuần</p>
               <div className="mt-2">
@@ -248,7 +248,7 @@ export const DashboardPage = () => {
                     Đã xuất bản
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse-subtle">
                     <AlertCircle className="w-3.5 h-3.5" />
                     Bản nháp
                   </span>
@@ -256,7 +256,7 @@ export const DashboardPage = () => {
               </div>
               <span className="text-[11px] text-slate-400 mt-1.5 block">Sẵn sàng gửi email</span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200">
               <Clock className="w-6 h-6" />
             </div>
           </div>
@@ -316,7 +316,7 @@ export const DashboardPage = () => {
         {/* 2 Key Monthly Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Monthly Stat 1: Dự toán lương tháng */}
-          <div className="bg-white p-6 rounded-2xl border border-emerald-200/80 shadow-xs flex items-center justify-between bg-gradient-to-br from-white to-emerald-50/30">
+          <div className="bg-white p-6 rounded-2xl border border-emerald-200/80 shadow-xs flex items-center justify-between bg-gradient-to-br from-white to-emerald-50/30 hover-lift cursor-default group transition-all duration-200">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {isCurrentMonth ? 'Dự đoán lương tháng này' : `Dự toán lương Tháng ${selectedMonth}/${selectedYear}`}
@@ -328,13 +328,13 @@ export const DashboardPage = () => {
                 {stats.monthTotalHours} giờ làm việc trong tháng
               </span>
             </div>
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs group-hover:scale-110 group-hover:rotate-3 transition-transform duration-200">
               <Wallet className="w-7 h-7" />
             </div>
           </div>
 
           {/* Monthly Stat 2: Ca đã phân trong tháng */}
-          <div className="bg-white p-6 rounded-2xl border border-indigo-200/80 shadow-xs flex items-center justify-between bg-gradient-to-br from-white to-indigo-50/30">
+          <div className="bg-white p-6 rounded-2xl border border-indigo-200/80 shadow-xs flex items-center justify-between bg-gradient-to-br from-white to-indigo-50/30 hover-lift cursor-default group transition-all duration-200">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {isCurrentMonth ? 'Ca đã phân tháng này' : `Ca đã phân Tháng ${selectedMonth}/${selectedYear}`}
@@ -346,7 +346,7 @@ export const DashboardPage = () => {
                 {stats.monthCompletedShifts} ca hoàn thành {stats.monthMissedShifts > 0 ? `• Trừ ${stats.monthMissedShifts} ca vắng` : ''}
               </span>
             </div>
-            <div className="w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 shadow-xs group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-200">
               <CalendarCheck className="w-7 h-7" />
             </div>
           </div>
@@ -358,13 +358,13 @@ export const DashboardPage = () => {
         {/* Action 1 */}
         <div
           onClick={() => navigate('/schedules')}
-          className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:border-[#EA701B] transition cursor-pointer group flex flex-col justify-between"
+          className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:border-[#EA701B] hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer group flex flex-col justify-between btn-press"
         >
           <div>
-            <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#EA701B] flex items-center justify-center mb-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#EA701B] flex items-center justify-center mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-200">
               <CalendarDays className="w-5 h-5" />
             </div>
-            <h4 className="text-sm font-bold text-slate-900 group-hover:text-[#EA701B] transition">
+            <h4 className="text-sm font-bold text-slate-900 group-hover:text-[#EA701B] transition-colors">
               Xếp lịch làm việc tuần này
             </h4>
             <p className="text-xs text-slate-500 mt-1">
@@ -373,20 +373,20 @@ export const DashboardPage = () => {
           </div>
           <div className="flex items-center gap-1.5 text-xs font-bold text-[#EA701B] mt-4">
             <span>Mở bảng xếp ca</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform duration-200" />
           </div>
         </div>
 
         {/* Action 2 */}
         <div
           onClick={() => navigate('/employees')}
-          className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:border-[#EA701B] transition cursor-pointer group flex flex-col justify-between"
+          className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:border-blue-500 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer group flex flex-col justify-between btn-press"
         >
           <div>
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-200">
               <Users className="w-5 h-5" />
             </div>
-            <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition">
+            <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
               Quản lý nhân viên & Lương theo giờ
             </h4>
             <p className="text-xs text-slate-500 mt-1">
@@ -395,20 +395,20 @@ export const DashboardPage = () => {
           </div>
           <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 mt-4">
             <span>Danh sách nhân sự</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform duration-200" />
           </div>
         </div>
 
         {/* Action 3 */}
         <div
           onClick={() => navigate('/shifts')}
-          className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:border-[#EA701B] transition cursor-pointer group flex flex-col justify-between"
+          className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:border-emerald-500 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer group flex flex-col justify-between btn-press"
         >
           <div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-200">
               <Clock className="w-5 h-5" />
             </div>
-            <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition">
+            <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
               Cài đặt Khung giờ / Ca làm
             </h4>
             <p className="text-xs text-slate-500 mt-1">
@@ -417,7 +417,7 @@ export const DashboardPage = () => {
           </div>
           <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 mt-4">
             <span>Cài đặt ca làm</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform duration-200" />
           </div>
         </div>
       </div>

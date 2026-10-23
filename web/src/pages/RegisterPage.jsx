@@ -80,7 +80,7 @@ export const RegisterPage = () => {
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-xl">
-        <div className="bg-white py-8 px-6 shadow-xl shadow-orange-950/5 rounded-3xl border border-slate-200/80 sm:px-10">
+        <div className="bg-white py-8 px-6 shadow-xl shadow-orange-950/5 rounded-3xl border border-slate-200/80 sm:px-10 animate-modal-pop">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2 animate-fade-in">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
@@ -98,7 +98,7 @@ export const RegisterPage = () => {
                 {/* Option 1: Chủ cửa hàng (ADMIN) */}
                 <div
                   onClick={() => setFormData({ ...formData, role: 'ADMIN' })}
-                  className={`p-4 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                  className={`p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 hover-lift btn-press flex flex-col justify-between ${
                     formData.role === 'ADMIN'
                       ? 'border-[#EA701B] bg-[#FFF0E5]/60 shadow-sm'
                       : 'border-slate-200 bg-white hover:border-slate-300'
@@ -123,7 +123,7 @@ export const RegisterPage = () => {
                 {/* Option 2: Người đi làm (EMPLOYEE) */}
                 <div
                   onClick={() => setFormData({ ...formData, role: 'EMPLOYEE' })}
-                  className={`p-4 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                  className={`p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 hover-lift btn-press flex flex-col justify-between ${
                     formData.role === 'EMPLOYEE'
                       ? 'border-[#EA701B] bg-[#FFF0E5]/60 shadow-sm'
                       : 'border-slate-200 bg-white hover:border-slate-300'
@@ -253,7 +253,7 @@ export const RegisterPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-4 py-3 px-4 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-2xl shadow-md shadow-orange-500/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full mt-4 py-3 px-4 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-2xl shadow-md shadow-orange-500/20 hover-lift btn-press transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <span>{loading ? 'Đang tạo tài khoản...' : 'Hoàn tất đăng ký'}</span>
               <ArrowRight className="w-4 h-4" />

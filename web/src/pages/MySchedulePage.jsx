@@ -528,10 +528,10 @@ export const MySchedulePage = () => {
                           key={day.dateStr}
                           type="button"
                           onClick={() => setSelectedDate(day.dateStr)}
-                          className={`flex flex-col items-center py-2 px-1 rounded-xl text-center transition-all ${
+                          className={`flex flex-col items-center py-2 px-1 rounded-xl text-center transition-all duration-150 btn-press ${
                             isSelected
-                              ? 'bg-[#EA701B] text-white shadow-md shadow-orange-500/30'
-                              : 'bg-slate-50 text-slate-700 hover:bg-orange-50'
+                              ? 'bg-[#EA701B] text-white shadow-md shadow-orange-500/30 scale-105'
+                              : 'bg-slate-50 text-slate-700 hover:bg-orange-50 hover:scale-102'
                           }`}
                         >
                           <span className={`text-[10px] font-semibold ${isSelected ? 'text-orange-100' : 'text-slate-400'}`}>
@@ -557,7 +557,7 @@ export const MySchedulePage = () => {
                 </div>
 
                 {/* Bank-Card Style Wage Summary Card */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white p-5 rounded-2xl shadow-lg shadow-slate-900/10">
+                <div className="relative overflow-hidden bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white p-5 rounded-2xl shadow-lg shadow-slate-900/10 hover-lift cursor-default transition-all duration-300">
                   {/* Decorative curved glow */}
                   <div className="absolute -right-8 -bottom-8 w-32 h-32 rounded-full bg-[#EA701B]/20 blur-xl pointer-events-none" />
 
@@ -593,7 +593,7 @@ export const MySchedulePage = () => {
 
                 {/* Hero / Next Upcoming Shift Card */}
                 {nextUpcomingShift && (
-                  <div className="bg-[#FFF0E5] border border-orange-200/80 p-4 rounded-2xl shadow-xs">
+                  <div className="bg-[#FFF0E5] border border-orange-200/80 p-4 rounded-2xl shadow-xs hover-lift transition-all duration-200">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider bg-[#EA701B] text-white px-2 py-0.5 rounded-md">
                         Ca làm tiếp theo
@@ -866,8 +866,8 @@ export const MySchedulePage = () => {
 
       {/* SHIFT DETAILS MODAL */}
       {activeShiftDetail && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-backdrop-fade">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-modal-pop">
             <div className="p-5 bg-[#FFF0E5] border-b border-orange-100">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[#EA701B] uppercase tracking-wider">
