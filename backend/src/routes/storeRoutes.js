@@ -9,6 +9,7 @@ import {
 } from '../controllers/storeController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import memberRoutes from './memberRoutes.js';
+import shiftRoutes from './shiftRoutes.js';
 
 const router = express.Router();
 
@@ -17,6 +18,9 @@ router.use(protect);
 
 // Nhánh con quản lý thành viên và gán lương: /api/stores/:storeId/members
 router.use('/:storeId/members', memberRoutes);
+
+// Nhánh con quản lý Slot ca làm việc: /api/stores/:storeId/shifts
+router.use('/:storeId/shifts', shiftRoutes);
 
 // 1. Tạo cửa hàng mới (ADMIN)
 router.post('/', createStore);
