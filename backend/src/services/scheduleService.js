@@ -1,0 +1,543 @@
+import Store from '../models/Store.js';
+import StoreMember from '../models/StoreMember.js';
+import Shift from '../models/Shift.js';
+import Schedule from '../models/Schedule.js';
+import {
+  extractId,
+  getTodayDateString,
+  isShiftTimePassed,
+  checkShiftOverlap,
+} from '../utils/timeScheduleHelpers.js';
+
+/**
+ * Service: Xác thực bảo toàn ca đã qua (Immutability Validation)
+ * TUYỆT ĐỐI KHÔNG THỂ XÓA, SỬA HOẶC THAY ĐỔI CA ĐÃ QUA
+ */
+export const validatePassedShiftImmutability = async (storeId, rawAssignments, existingAssignments = []) => {
+  const shifts = await Shift.find({ storeId });
+  const shiftMap = {};
+  shifts.forEach((s) => {
+    shiftMap[s._id.toString()] = s;
+  });
+
+  const members = await StoreMember.find({ storeId }).populate('userId', 'fullName');
+  const memberMap = {};
+  members.forEach((m) => {
+    if (m.userId) {
+      memberMap[m.userId._id.toString()] = m;
+    }
+  });
+
+  const todayStr = getTodayDateString();
+
+  // Danh sách các ca đã qua trong DB
+  const existingKeySet = new Set();
+  const existingPassedList = [];
+
+  for (const a of existingAssignments) {
+    const sId = extractId(a.shiftId);
+    const uId = extractId(a.userId);
+    const shift = shiftMap[sId];
+    const key = `${a.date}_${sId}_${uId}`;
+    existingKeySet.add(key);
+
+    if (shift && isShiftTimePassed(a.date, shift)) {
+      existingPassedList.push({
+        date: a.date,
+        shiftId: sId,
+        userId: uId,
+        shiftName: shift.name,
+        timeRange: `${shift.startTime} - ${shift.endTime}`,
+        key,
+      });
+    }
+  }
+
+  // Tập hợp các ca mới gửi lên
+  const incomingKeySet = new Set();
+  for (const item of rawAssignments) {
+    const sId = extractId(item.shiftId);
+    const uId = extractId(item.userId);
+    const key = `${item.date}_${sId}_${uId}`;
+    incomingKeySet.add(key);
+  }
+
+  // 1. KIỂM TRA BỊ XÓA: Mọi ca đã qua trong DB bắt buộc phải có mặt trong rawAssignments
+  for (const passed of existingPassedList) {
+    if (!incomingKeySet.has(passed.key)) {
+      const member = memberMap[passed.userId];
+      const empName = member?.userId?.fullName || 'nhân viên';
+      const err = new Error(
+        `Không thể xóa ca làm việc đã kết thúc: Ca "${passed.shiftName}" (${passed.timeRange}) ngày ${passed.date} của nhân viên "${empName}" đã diễn ra. Hệ thống khóa các ca đã qua để bảo toàn giờ làm và tiền lương của nhân viên!`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  // 2. KIỂM TRA THÊM MỚI HOẶC SỬA: Không được phép thêm mới hay đổi nhân viên vào một ca đã qua
+  for (const item of rawAssignments) {
+    const sId = extractId(item.shiftId);
+    const uId = extractId(item.userId);
+    const shift = shiftMap[sId];
+
+    if (shift && isShiftTimePassed(item.date, shift)) {
+      const key = `${item.date}_${sId}_${uId}`;
+      if (!existingKeySet.has(key)) {
+        const err = new Error(
+          `Không thể sửa hoặc thêm mới vào ca làm việc đã kết thúc: Ca "${shift.name}" (${shift.startTime} - ${shift.endTime}) ngày ${item.date} đã qua giờ làm. Không thể thay đổi người trực ca đã hoàn thành!`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+    } else if (item.date && item.date < todayStr) {
+      const key = `${item.date}_${sId}_${uId}`;
+      if (!existingKeySet.has(key)) {
+        const err = new Error(
+          `Lỗi xếp lịch: Ngày ${item.date} đã qua trong quá khứ. Hệ thống chỉ cho phép xếp lịch cho ngày hiện tại và tương lai!`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+  }
+};
+
+/**
+ * Service: Xử lý tính toán tiền lương cho từng ca và tổng kết lương
+ */
+export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
+  // 1. Lấy toàn bộ ca làm việc của quán để map số giờ
+  const shifts = await Shift.find({ storeId });
+  const shiftMap = {};
+  shifts.forEach((s) => {
+    shiftMap[s._id.toString()] = s;
+  });
+
+  const store = await Store.findById(storeId);
+
+  // 2. Lấy toàn bộ thành viên của quán để map mức lương theo giờ
+  const members = await StoreMember.find({ storeId, status: 'ACTIVE' }).populate(
+    'userId',
+    'fullName email'
+  );
+  const memberMap = {};
+  members.forEach((m) => {
+    if (m.userId) {
+      memberMap[m.userId._id.toString()] = m;
+    }
+  });
+
+  // 3. Kiểm tra logic trùng giờ làm việc: 1 người không thể làm 2 ca trùng/giao thoa giờ trong 1 ngày
+  const userDateShifts = {};
+  for (const item of rawAssignments) {
+    const sId = extractId(item.shiftId);
+    const uId = extractId(item.userId);
+    if (!item.date || !sId || !uId) continue;
+    const shift = shiftMap[sId];
+    const member = memberMap[uId];
+    if (!shift || !member) continue;
+
+    // Không cho phép xếp Chủ cửa hàng (ADMIN) vào ca làm việc
+    const isOwner = (store && store.ownerId.toString() === uId) || member.roleInStore === 'ADMIN';
+    if (isOwner) {
+      const memberName = member.userId ? (member.userId.fullName || member.userId.name) : 'Chủ cửa hàng';
+      const err = new Error(
+        `Lỗi phân công: "${memberName}" là Chủ cửa hàng (ADMIN). Chủ cửa hàng không thể được phân công vào ca làm việc!`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const key = `${item.date}_${uId}`;
+    if (!userDateShifts[key]) {
+      userDateShifts[key] = [];
+    }
+
+    for (const existingShift of userDateShifts[key]) {
+      // 1. Kiểm tra nếu bị phân trùng 2 lần cùng 1 ca
+      if (existingShift._id.toString() === shift._id.toString()) {
+        const memberName = member.userId ? (member.userId.fullName || member.userId.name) : 'Nhân viên';
+        const err = new Error(
+          `Lỗi trùng lặp: Nhân viên "${memberName}" đã được phân công vào ca "${shift.name}" ngày ${item.date}. Không thể thêm cùng một nhân viên nhiều lần vào cùng một ca!`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // 2. Kiểm tra nếu trùng khung giờ giữa 2 ca khác nhau
+      if (checkShiftOverlap(shift, existingShift)) {
+        const memberName = member.userId ? (member.userId.fullName || member.userId.name) : 'Nhân viên';
+        const err = new Error(
+          `Lỗi trùng ca: Nhân viên "${memberName}" bị trùng giờ làm việc vào ngày ${item.date} giữa ca "${existingShift.name}" (${existingShift.startTime} - ${existingShift.endTime}) và ca "${shift.name}" (${shift.startTime} - ${shift.endTime}). Một người không thể làm 2 ca trong cùng khung giờ!`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    userDateShifts[key].push(shift);
+  }
+
+  // 4. Tính toán cho từng ca phân công
+  const processedAssignments = [];
+  const salaryMap = {};
+
+  for (const item of rawAssignments) {
+    const sId = extractId(item.shiftId);
+    const uId = extractId(item.userId);
+    const shift = shiftMap[sId];
+    const member = memberMap[uId];
+
+    if (!shift || !member) continue;
+
+    const hours = shift.durationHours || 0;
+    const wage =
+      item.hourlyWage !== undefined && !isNaN(Number(item.hourlyWage))
+        ? Number(item.hourlyWage)
+        : member.hourlyWage || 0;
+    const totalPay = Math.round(hours * wage);
+
+    processedAssignments.push({
+      date: item.date,
+      dayOfWeek: item.dayOfWeek,
+      shiftId: shift._id,
+      userId: member.userId._id,
+      hourlyWage: wage,
+      hours: hours,
+      totalPay: totalPay,
+    });
+
+    // Gom nhóm tổng lương theo nhân viên
+    const uid = member.userId._id.toString();
+    if (!salaryMap[uid]) {
+      salaryMap[uid] = {
+        userId: member.userId._id,
+        fullName: member.userId.fullName,
+        email: member.userId.email,
+        hourlyWage: wage,
+        totalHours: 0,
+        totalSalary: 0,
+        shiftCount: 0,
+        shifts: [],
+      };
+    }
+
+    salaryMap[uid].totalHours += hours;
+    salaryMap[uid].totalSalary += totalPay;
+    salaryMap[uid].shiftCount += 1;
+    salaryMap[uid].shifts.push({
+      date: item.date,
+      dayOfWeek: item.dayOfWeek,
+      shiftName: shift.name,
+      timeRange: `${shift.startTime} - ${shift.endTime}`,
+      hours: hours,
+      totalPay: totalPay,
+    });
+  }
+
+  return {
+    processedAssignments,
+    salarySummary: Object.values(salaryMap),
+    salaryMap,
+  };
+};
+
+/**
+ * Service: Tạo bảng tổng kết lương từ danh sách assignments đã lưu trong DB
+ */
+export const calculateSalarySummaryFromAssignments = (assignments) => {
+  const salaryMap = {};
+  assignments.forEach((a) => {
+    if (!a.userId) return;
+    const uid = a.userId._id.toString();
+    if (!salaryMap[uid]) {
+      salaryMap[uid] = {
+        userId: a.userId._id,
+        fullName: a.userId.fullName,
+        email: a.userId.email,
+        hourlyWage: a.hourlyWage,
+        totalHours: 0,
+        totalSalary: 0,
+        shiftCount: 0,
+      };
+    }
+    salaryMap[uid].totalHours += a.hours;
+    salaryMap[uid].totalSalary += a.totalPay;
+    salaryMap[uid].shiftCount += 1;
+  });
+  return Object.values(salaryMap);
+};
+
+/**
+ * Service: Thuật toán tự động xếp ca làm việc thông minh & cân bằng tải (Fair Scheduling)
+ */
+export const generateAutoSchedule = async ({
+  storeId,
+  week,
+  year,
+  startDate,
+  endDate,
+  days,
+  staffPerShift = 1,
+  maxShiftsPerDay = 1,
+  preserveExisting = false,
+  existingAssignments = [],
+  userId,
+}) => {
+  const shifts = await Shift.find({ storeId, isActive: { $ne: false } }).sort({ startTime: 1 });
+  if (!shifts || shifts.length === 0) {
+    const err = new Error('Cửa hàng chưa có ca làm việc nào. Vui lòng tạo ca làm việc trước khi tự động chia ca.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const store = await Store.findById(storeId);
+  const activeMembers = await StoreMember.find({ storeId, status: 'ACTIVE' }).populate(
+    'userId',
+    'fullName email systemRole'
+  );
+  const validMembers = activeMembers.filter(
+    (m) =>
+      m.userId &&
+      m.userId._id &&
+      m.roleInStore !== 'ADMIN' &&
+      store.ownerId.toString() !== m.userId._id.toString()
+  );
+
+  if (validMembers.length === 0) {
+    const err = new Error('Cửa hàng chưa có nhân viên hoặc quản lý nào để chia ca làm việc. Vui lòng thêm nhân viên trước khi tự động chia ca.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Chuẩn bị danh sách 7 ngày trong tuần
+  let weekDays = days;
+  if (!Array.isArray(weekDays) || weekDays.length === 0) {
+    const dayNames = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
+    const baseDate = new Date(startDate);
+    weekDays = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(baseDate);
+      d.setDate(baseDate.getDate() + i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dayNum = String(d.getDate()).padStart(2, '0');
+      weekDays.push({
+        date: `${y}-${m}-${dayNum}`,
+        dayOfWeek: dayNames[i],
+      });
+    }
+  }
+
+  const memberStats = {};
+  validMembers.forEach((m) => {
+    const uId = m.userId._id.toString();
+    memberStats[uId] = {
+      member: m,
+      userId: m.userId._id,
+      hourlyWage: m.hourlyWage || 20000,
+      shiftCount: 0,
+      totalHours: 0,
+      shiftsByDate: {},
+    };
+  });
+
+  const shiftMap = {};
+  shifts.forEach((s) => {
+    shiftMap[s._id.toString()] = s;
+  });
+
+  let workingAssignments = [];
+
+  // Tìm lịch hiện có trong DB để bảo toàn tuyệt đối toàn bộ ca đã qua
+  const existingSchedule = await Schedule.findOne({
+    storeId,
+    week: Number(week),
+    year: Number(year),
+  });
+
+  // 1. Luôn tự động giữ lại TOÀN BỘ các ca đã qua trong DB
+  const passedKeySet = new Set();
+  if (existingSchedule && Array.isArray(existingSchedule.assignments)) {
+    for (const item of existingSchedule.assignments) {
+      const uId = extractId(item.userId);
+      const sId = extractId(item.shiftId);
+      const shift = shiftMap[sId];
+      const stat = memberStats[uId];
+      if (shift && isShiftTimePassed(item.date, shift)) {
+        const key = `${item.date}_${sId}_${uId}`;
+        passedKeySet.add(key);
+        if (stat) {
+          if (!stat.shiftsByDate[item.date]) stat.shiftsByDate[item.date] = [];
+          stat.shiftsByDate[item.date].push(shift);
+          stat.shiftCount += 1;
+          stat.totalHours += shift.durationHours || 4;
+        }
+        workingAssignments.push({
+          date: item.date,
+          dayOfWeek: item.dayOfWeek,
+          shiftId: shift._id,
+          userId: uId,
+          hourlyWage: item.hourlyWage || (stat ? stat.hourlyWage : 20000),
+        });
+      }
+    }
+  }
+
+  // 2. Nếu chọn giữ lại các ca đã xếp thủ công
+  if (preserveExisting && Array.isArray(existingAssignments) && existingAssignments.length > 0) {
+    for (const item of existingAssignments) {
+      const uId = extractId(item.userId);
+      const sId = extractId(item.shiftId);
+      const shift = shiftMap[sId];
+      const stat = memberStats[uId];
+      const key = `${item.date}_${sId}_${uId}`;
+      if (passedKeySet.has(key)) continue;
+
+      if (shift && stat && item.date) {
+        if (!stat.shiftsByDate[item.date]) stat.shiftsByDate[item.date] = [];
+        stat.shiftsByDate[item.date].push(shift);
+        stat.shiftCount += 1;
+        stat.totalHours += shift.durationHours || 4;
+        workingAssignments.push({
+          date: item.date,
+          dayOfWeek: item.dayOfWeek,
+          shiftId: shift._id,
+          userId: stat.userId,
+          hourlyWage: stat.hourlyWage,
+        });
+      }
+    }
+  }
+
+  const targetStaffPerShift = Math.max(1, parseInt(staffPerShift, 10) || 1);
+  const maxPerDay = Math.max(1, parseInt(maxShiftsPerDay, 10) || 1);
+  const todayStr = getTodayDateString();
+
+  // 3. Thuật toán phân bổ ca tối ưu
+  for (const day of weekDays) {
+    if (day.date < todayStr) continue;
+
+    for (const shift of shifts) {
+      if (isShiftTimePassed(day.date, shift)) continue;
+
+      const sId = shift._id.toString();
+      const currentAssigned = workingAssignments.filter(
+        (a) => a.date === day.date && a.shiftId.toString() === sId
+      );
+      let needed = targetStaffPerShift - currentAssigned.length;
+
+      while (needed > 0) {
+        const eligibleCandidates = validMembers.filter((m) => {
+          const uId = m.userId._id.toString();
+          const stat = memberStats[uId];
+          const dateShifts = stat.shiftsByDate[day.date] || [];
+
+          if (dateShifts.some((s) => s._id.toString() === sId)) return false;
+          if (dateShifts.length >= maxPerDay) return false;
+          if (dateShifts.some((s) => checkShiftOverlap(shift, s))) return false;
+
+          return true;
+        });
+
+        let candidatePool = eligibleCandidates;
+        if (candidatePool.length === 0 && maxPerDay < shifts.length) {
+          candidatePool = validMembers.filter((m) => {
+            const uId = m.userId._id.toString();
+            const stat = memberStats[uId];
+            const dateShifts = stat.shiftsByDate[day.date] || [];
+
+            if (dateShifts.some((s) => s._id.toString() === sId)) return false;
+            if (dateShifts.some((s) => checkShiftOverlap(shift, s))) return false;
+
+            return true;
+          });
+        }
+
+        if (candidatePool.length === 0) break;
+
+        candidatePool.sort((a, b) => {
+          const statA = memberStats[a.userId._id.toString()];
+          const statB = memberStats[b.userId._id.toString()];
+
+          if (statA.shiftCount !== statB.shiftCount) {
+            return statA.shiftCount - statB.shiftCount;
+          }
+          if (statA.totalHours !== statB.totalHours) {
+            return statA.totalHours - statB.totalHours;
+          }
+          const todayA = (statA.shiftsByDate[day.date] || []).length;
+          const todayB = (statB.shiftsByDate[day.date] || []).length;
+          if (todayA !== todayB) {
+            return todayA - todayB;
+          }
+          return Math.random() - 0.5;
+        });
+
+        const chosenMember = candidatePool[0];
+        const chosenUId = chosenMember.userId._id.toString();
+        const chosenStat = memberStats[chosenUId];
+
+        workingAssignments.push({
+          date: day.date,
+          dayOfWeek: day.dayOfWeek,
+          shiftId: shift._id,
+          userId: chosenMember.userId._id,
+          hourlyWage: chosenStat.hourlyWage,
+        });
+
+        if (!chosenStat.shiftsByDate[day.date]) {
+          chosenStat.shiftsByDate[day.date] = [];
+        }
+        chosenStat.shiftsByDate[day.date].push(shift);
+        chosenStat.shiftCount += 1;
+        chosenStat.totalHours += shift.durationHours || 4;
+
+        needed--;
+      }
+    }
+  }
+
+  // Xác thực bảo toàn ca đã qua & tính toán lại lương chi tiết
+  await validatePassedShiftImmutability(storeId, workingAssignments, existingSchedule?.assignments || []);
+
+  const { processedAssignments, salarySummary } = await processAssignmentsAndSalary(
+    storeId,
+    workingAssignments
+  );
+
+  let schedule = await Schedule.findOne({
+    storeId,
+    week: Number(week),
+    year: Number(year),
+  });
+
+  if (schedule) {
+    schedule.startDate = new Date(startDate);
+    schedule.endDate = new Date(endDate);
+    schedule.assignments = processedAssignments;
+    schedule.status = 'DRAFT';
+    schedule.createdBy = userId;
+  } else {
+    schedule = new Schedule({
+      storeId,
+      week: Number(week),
+      year: Number(year),
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      status: 'DRAFT',
+      createdBy: userId,
+      assignments: processedAssignments,
+    });
+  }
+
+  await schedule.save();
+
+  await schedule.populate([
+    { path: 'assignments.shiftId', select: 'name startTime endTime durationHours color' },
+    { path: 'assignments.userId', select: 'fullName email systemRole' },
+  ]);
+
+  return { schedule, salarySummary };
+};
