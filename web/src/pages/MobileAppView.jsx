@@ -1,0 +1,716 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Calendar,
+  Clock,
+  DollarSign,
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  Bell,
+  User,
+  KeyRound,
+  Store,
+  CheckCircle2,
+  AlertCircle,
+  LogOut,
+  MapPin,
+  Sparkles,
+  ArrowRight,
+  Info
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { scheduleApi, storeApi, userApi } from '../services/api';
+import {
+  getMondayOfWeek,
+  getDaysOfWeek,
+  addWeeks,
+  formatWeekRange,
+  formatVND,
+  formatDateToISO,
+  getWeekNumberAndYear
+} from '../utils/formatters';
+
+export const MobileAppView = () => {
+  const { user, store, refreshUser, logout } = useAuth();
+
+  // Navigation tab: 'schedule' | 'notifications' | 'profile'
+  const [activeTab, setActiveTab] = useState('schedule');
+
+  // Schedule states
+  const [currentMonday, setCurrentMonday] = useState(() => getMondayOfWeek());
+  const [selectedDate, setSelectedDate] = useState(() => formatDateToISO(new Date()));
+  const [scheduleData, setScheduleData] = useState(null);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
+  const [activeShiftDetail, setActiveShiftDetail] = useState(null);
+
+  // Join store code state (6 digits)
+  const [inviteCodeDigits, setInviteCodeDigits] = useState(['', '', '', '', '', '']);
+  const [joining, setJoining] = useState(false);
+  const [joinFeedback, setJoinFeedback] = useState(null);
+
+  // Profile modal / state
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    gender: user?.gender || 'Nam',
+    age: user?.age || ''
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState(null);
+
+  const daysOfWeek = useMemo(() => getDaysOfWeek(currentMonday), [currentMonday]);
+  const { week, year } = useMemo(() => getWeekNumberAndYear(currentMonday), [currentMonday]);
+
+  // Load employee's personal schedule
+  const loadPersonalSchedule = useCallback(async () => {
+    if (!store) return;
+    try {
+      setLoadingSchedule(true);
+      const res = await scheduleApi.getMySchedule(week, year);
+      if (res.success && (res.shifts || res.data)) {
+        setScheduleData({
+          shifts: res.shifts || res.data?.shifts || [],
+          stats: {
+            totalShifts: res.shifts?.length || 0,
+            totalHours: res.totalHours || 0,
+            hourlyWage: res.hourlyWage || 0,
+            estimatedWage: res.totalSalary || 0
+          }
+        });
+      } else {
+        setScheduleData(null);
+      }
+    } catch (err) {
+      console.error('Error fetching personal schedule:', err);
+      setScheduleData(null);
+    } finally {
+      setLoadingSchedule(false);
+    }
+  }, [store, week, year]);
+
+  useEffect(() => {
+    loadPersonalSchedule();
+  }, [loadPersonalSchedule]);
+
+  // Handle 6-digit code change
+  const handleDigitChange = (index, value) => {
+    const char = value.slice(-1); // only keep last character
+    if (!/^\d*$/.test(char)) return;
+
+    const newDigits = [...inviteCodeDigits];
+    newDigits[index] = char;
+    setInviteCodeDigits(newDigits);
+
+    // Auto-focus next input
+    if (char && index < 5) {
+      const nextInput = document.getElementById(`digit-${index + 1}`);
+      if (nextInput) nextInput.focus();
+    }
+  };
+
+  const handleDigitKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !inviteCodeDigits[index] && index > 0) {
+      const prevInput = document.getElementById(`digit-${index - 1}`);
+      if (prevInput) prevInput.focus();
+    }
+  };
+
+  // Submit Join by 6-digit code
+  const handleJoinStore = async (e) => {
+    e.preventDefault();
+    const fullCode = inviteCodeDigits.join('');
+    if (fullCode.length !== 6) {
+      setJoinFeedback({ type: 'error', message: 'Vui lòng nhập đủ 6 chữ số mã mời.' });
+      return;
+    }
+
+    try {
+      setJoining(true);
+      setJoinFeedback(null);
+      const res = await storeApi.joinByCode(fullCode);
+      if (res.success) {
+        setJoinFeedback({
+          type: 'success',
+          message: `Tham gia thành công quán "${res.data?.store?.name}"!`
+        });
+        await refreshUser();
+      }
+    } catch (err) {
+      setJoinFeedback({
+        type: 'error',
+        message: err.message || 'Mã mời không đúng hoặc đã hết hạn (60 phút).'
+      });
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  // Update profile
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    try {
+      setSavingProfile(true);
+      setProfileMsg(null);
+      const res = await userApi.updateProfile({
+        name: profileForm.name,
+        gender: profileForm.gender,
+        age: Number(profileForm.age)
+      });
+      if (res.success) {
+        setProfileMsg({ type: 'success', message: 'Cập nhật thông tin thành công!' });
+        await refreshUser();
+      }
+    } catch (err) {
+      setProfileMsg({ type: 'error', message: err.message || 'Lỗi cập nhật' });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // Get shifts for the currently selected date in the week strip
+  const shiftsForSelectedDate = useMemo(() => {
+    if (!scheduleData?.shifts) return [];
+    return scheduleData.shifts.filter((s) => s.date === selectedDate);
+  }, [scheduleData, selectedDate]);
+
+  // Find next upcoming shift (hero card)
+  const nextUpcomingShift = useMemo(() => {
+    if (!scheduleData?.shifts || scheduleData.shifts.length === 0) return null;
+    const today = formatDateToISO(new Date());
+    // Find today's or future shift
+    const upcoming = scheduleData.shifts.find((s) => s.date >= today);
+    return upcoming || scheduleData.shifts[0];
+  }, [scheduleData]);
+
+  return (
+    <div className="flex-1 flex flex-col bg-[#FFF7F0] text-[#252525] min-h-full font-['Be_Vietnam_Pro',sans-serif] max-w-lg mx-auto w-full">
+      {/* CASE 1: Employee Has Not Joined Any Store Yet */}
+      {!store ? (
+        <div className="flex-1 p-6 flex flex-col justify-between">
+          <div>
+            {/* Header branding */}
+            <div className="text-center pt-4 pb-6">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-md mx-auto p-2 flex items-center justify-center mb-3 border border-orange-100">
+                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                Tham gia Cửa hàng
+              </h2>
+              <p className="text-xs text-slate-500 mt-1 max-w-[280px] mx-auto">
+                Nhập <b>mã mời 6 chữ số</b> do Chủ quán hoặc Quản lý cung cấp để bắt đầu xem ca làm.
+              </p>
+            </div>
+
+            {/* 6-digit OTP Inputs */}
+            <form onSubmit={handleJoinStore} className="space-y-6">
+              <div className="flex justify-center gap-2 sm:gap-2.5">
+                {inviteCodeDigits.map((digit, idx) => (
+                  <input
+                    key={idx}
+                    id={`digit-${idx}`}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleDigitChange(idx, e.target.value)}
+                    onKeyDown={(e) => handleDigitKeyDown(idx, e)}
+                    className="w-11 h-13 text-center text-xl font-extrabold font-mono rounded-xl bg-white border-2 border-slate-200 focus:border-[#EA701B] focus:ring-2 focus:ring-orange-100 text-slate-800 shadow-xs focus:outline-none transition"
+                  />
+                ))}
+              </div>
+
+              {joinFeedback && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                    joinFeedback.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-red-50 text-red-800 border border-red-200'
+                  }`}
+                >
+                  {joinFeedback.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  )}
+                  <span>{joinFeedback.message}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={joining}
+                className="w-full py-3.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white font-bold text-sm rounded-2xl shadow-lg shadow-orange-500/25 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {joining ? 'Đang xác thực...' : 'Xác nhận mã mời'}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+
+            <div className="mt-6 p-4 bg-[#FFF0E5] rounded-2xl border border-orange-200/60 text-xs text-slate-600 flex gap-3">
+              <Info className="w-4 h-4 text-[#EA701B] shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-[#EA701B]">Lưu ý mã mời:</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Mã mời chỉ có hiệu lực trong <b>60 phút</b> kể từ khi Chủ quán tạo. Nếu mã hết hạn, hãy nhờ chủ quán tạo mã mới.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom user logout */}
+          <div className="pt-6 border-t border-slate-200/60 flex items-center justify-between text-xs">
+            <span className="text-slate-500">Đăng nhập: <b>{user?.name}</b></span>
+            <button
+              type="button"
+              onClick={logout}
+              className="text-red-600 font-bold hover:underline flex items-center gap-1"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Đăng xuất
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* CASE 2: Employee Is A Member of Store */
+        <div className="flex-1 flex flex-col justify-between overflow-hidden">
+          {/* Main Scrollable Tab Content */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+            
+            {/* TAB 1: LỊCH LÀM VIỆC (MY SCHEDULE) */}
+            {activeTab === 'schedule' && (
+              <div className="space-y-4 animate-fade-in">
+                {/* Store Greeting & Week navigation */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-[#EA701B]">
+                        {store.name}
+                      </p>
+                      <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
+                        Xin chào, {user?.name?.split(' ').pop() || 'bạn'} 👋
+                      </h2>
+                    </div>
+
+                    {/* Week nav arrows */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentMonday((prev) => addWeeks(prev, -1))}
+                        className="p-1 hover:bg-white rounded-lg text-slate-600 transition"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentMonday(getMondayOfWeek())}
+                        className="px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-white rounded-lg"
+                      >
+                        Hôm nay
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentMonday((prev) => addWeeks(prev, 1))}
+                        className="p-1 hover:bg-white rounded-lg text-slate-600 transition"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 font-mono mt-1">
+                    Tuần: {formatWeekRange(currentMonday)}
+                  </p>
+
+                  {/* Horizontal 7-Day Date Strip */}
+                  <div className="grid grid-cols-7 gap-1.5 mt-3 pt-3 border-t border-slate-100">
+                    {daysOfWeek.map((day) => {
+                      const isSelected = selectedDate === day.dateStr;
+                      const hasShift = scheduleData?.shifts?.some((s) => s.date === day.dateStr);
+
+                      return (
+                        <button
+                          key={day.dateStr}
+                          type="button"
+                          onClick={() => setSelectedDate(day.dateStr)}
+                          className={`flex flex-col items-center py-2 px-1 rounded-xl text-center transition-all ${
+                            isSelected
+                              ? 'bg-[#EA701B] text-white shadow-md shadow-orange-500/30'
+                              : 'bg-slate-50 text-slate-700 hover:bg-orange-50'
+                          }`}
+                        >
+                          <span className={`text-[10px] font-semibold ${isSelected ? 'text-orange-100' : 'text-slate-400'}`}>
+                            {day.shortDayName}
+                          </span>
+                          <span className="text-xs font-bold font-mono mt-0.5">
+                            {day.displayDate.split('/')[0]}
+                          </span>
+                          {/* Dot indicator if has shift */}
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full mt-1 ${
+                              hasShift
+                                ? isSelected
+                                  ? 'bg-white'
+                                  : 'bg-[#EA701B]'
+                                : 'opacity-0'
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Bank-Card Style Wage Summary Card */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white p-5 rounded-2xl shadow-lg shadow-slate-900/10">
+                  {/* Decorative curved glow */}
+                  <div className="absolute -right-8 -bottom-8 w-32 h-32 rounded-full bg-[#EA701B]/20 blur-xl pointer-events-none" />
+
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#EA701B]" />
+                      Bảng lương ước tính tuần này
+                    </span>
+                    <span className="text-[10px] bg-orange-500/20 text-orange-300 border border-orange-500/30 px-2 py-0.5 rounded-full font-mono">
+                      {formatVND(scheduleData?.stats?.hourlyWage || 0)}/h
+                    </span>
+                  </div>
+
+                  <div className="text-2xl font-extrabold tracking-tight font-mono text-white mb-3">
+                    {formatVND(scheduleData?.stats?.estimatedWage || 0)}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-700/60 text-xs">
+                    <div>
+                      <span className="text-[11px] text-slate-400 block">Số ca đã nhận:</span>
+                      <span className="font-bold text-slate-200 font-mono">
+                        {scheduleData?.stats?.totalShifts || 0} ca
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-400 block">Tổng số giờ làm:</span>
+                      <span className="font-bold text-slate-200 font-mono">
+                        {scheduleData?.stats?.totalHours || 0} giờ
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hero / Next Upcoming Shift Card */}
+                {nextUpcomingShift && (
+                  <div className="bg-[#FFF0E5] border border-orange-200/80 p-4 rounded-2xl shadow-xs">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-[#EA701B] text-white px-2 py-0.5 rounded-md">
+                        Ca làm tiếp theo
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-700">
+                        {nextUpcomingShift.date}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-900">
+                          {nextUpcomingShift.shift?.name || 'Ca làm việc'}
+                        </h4>
+                        <p className="text-xs text-slate-600 font-mono flex items-center gap-1 mt-0.5">
+                          <Clock className="w-3 h-3 text-[#EA701B]" />
+                          <span>
+                            {nextUpcomingShift.shift?.startTime} — {nextUpcomingShift.shift?.endTime}
+                          </span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveShiftDetail(nextUpcomingShift)}
+                        className="px-3 py-1.5 bg-white text-[#EA701B] border border-orange-200 rounded-xl text-xs font-bold shadow-xs hover:bg-orange-50 transition"
+                      >
+                        Chi tiết
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Shifts For Selected Day Section */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
+                    Lịch ngày {daysOfWeek.find((d) => d.dateStr === selectedDate)?.fullDisplay || selectedDate}
+                  </h3>
+
+                  {shiftsForSelectedDate.length === 0 ? (
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 text-center">
+                      <Clock className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
+                      <p className="text-xs font-bold text-slate-700">Không có ca làm trong ngày này</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Bạn có thể chọn ngày khác trên thanh thứ hoặc nghỉ ngơi nạp năng lượng!
+                      </p>
+                    </div>
+                  ) : (
+                    shiftsForSelectedDate.map((item, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setActiveShiftDetail(item)}
+                        className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-[#EA701B] transition cursor-pointer flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#EA701B] flex items-center justify-center font-bold text-xs shrink-0">
+                            <Clock className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900">
+                              {item.shift?.name}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              {item.shift?.startTime} — {item.shift?.endTime} ({item.shift?.durationHours}h)
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Coworkers badge */}
+                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                          <Users className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{item.coworkers?.length || 0} đồng nghiệp</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: THÔNG BÁO (NOTIFICATIONS) */}
+            {activeTab === 'notifications' && (
+              <div className="space-y-3 animate-fade-in">
+                <h3 className="text-sm font-bold text-slate-800 px-1">Thông báo & Cập nhật</h3>
+                
+                {/* Clean notifications mock matching API capabilities */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#EA701B] uppercase tracking-wider">
+                      Lịch làm việc
+                    </span>
+                    <span className="text-[10px] text-slate-400">Vừa xong</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900">
+                    Lịch tuần {formatWeekRange(currentMonday)} đã xuất bản
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Chủ quán đã cập nhật và gửi email xác nhận chi tiết ca làm và lương dự toán.
+                  </p>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                      Cửa hàng
+                    </span>
+                    <span className="text-[10px] text-slate-400">Gần đây</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900">
+                    Chào mừng bạn gia nhập {store.name}
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Tài khoản của bạn đã được kết nối vào hệ thống xếp ca của quán.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: HỒ SƠ CÁ NHÂN (PROFILE) */}
+            {activeTab === 'profile' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs text-center">
+                  <div className="w-16 h-16 rounded-full bg-orange-100 text-[#EA701B] font-extrabold text-xl mx-auto flex items-center justify-center border-2 border-orange-200 mb-2">
+                    {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">{user?.name}</h3>
+                  <p className="text-xs text-slate-500 font-mono">{user?.email}</p>
+                  <div className="mt-2 inline-block px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                    Nhân viên tại {store.name}
+                  </div>
+                </div>
+
+                {/* Edit Form */}
+                <form onSubmit={handleUpdateProfile} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Thông tin cá nhân
+                  </h4>
+
+                  {profileMsg && (
+                    <div className={`p-2.5 rounded-xl text-xs font-semibold ${profileMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      {profileMsg.message}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Họ và tên</label>
+                    <input
+                      type="text"
+                      value={profileForm.name}
+                      onChange={(e) => setProfileForm((prev) => ({ ...prev, name: e.target.value }))}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Giới tính</label>
+                      <select
+                        value={profileForm.gender}
+                        onChange={(e) => setProfileForm((prev) => ({ ...prev, gender: e.target.value }))}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+                      >
+                        <option value="Nam">Nam</option>
+                        <option value="Nữ">Nữ</option>
+                        <option value="Khác">Khác</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Tuổi</label>
+                      <input
+                        type="number"
+                        value={profileForm.age}
+                        onChange={(e) => setProfileForm((prev) => ({ ...prev, age: e.target.value }))}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={savingProfile}
+                    className="w-full py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
+                  >
+                    {savingProfile ? 'Đang lưu...' : 'Lưu cập nhật'}
+                  </button>
+                </form>
+
+                {/* Logout Button */}
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="w-full py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 border border-red-100"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Đăng xuất tài khoản
+                </button>
+              </div>
+            )}
+
+          </div>
+
+          {/* iOS Bottom Navigation Bar (3 Tabs: Lịch làm, Thông báo, Cá nhân) */}
+          <div className="bg-white border-t border-slate-200/80 px-6 py-2 flex items-center justify-around select-none">
+            <button
+              type="button"
+              onClick={() => setActiveTab('schedule')}
+              className={`flex flex-col items-center py-1 transition ${
+                activeTab === 'schedule' ? 'text-[#EA701B]' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="text-[10px] font-bold mt-1">Lịch làm</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('notifications')}
+              className={`flex flex-col items-center py-1 transition ${
+                activeTab === 'notifications' ? 'text-[#EA701B]' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Bell className="w-5 h-5" />
+              <span className="text-[10px] font-bold mt-1">Thông báo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className={`flex flex-col items-center py-1 transition ${
+                activeTab === 'profile' ? 'text-[#EA701B]' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              <span className="text-[10px] font-bold mt-1">Cá nhân</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SHIFT DETAILS MODAL */}
+      {activeShiftDetail && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-5 bg-[#FFF0E5] border-b border-orange-100">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#EA701B] uppercase tracking-wider">
+                  Chi tiết ca làm việc
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveShiftDetail(null)}
+                  className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1"
+                >
+                  ✕
+                </button>
+              </div>
+              <h3 className="text-base font-extrabold text-slate-900 mt-1">
+                {activeShiftDetail.shift?.name}
+              </h3>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <span className="text-slate-500">Ngày làm:</span>
+                <span className="font-bold text-slate-800 font-mono">{activeShiftDetail.date}</span>
+              </div>
+
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <span className="text-slate-500">Thời gian ca:</span>
+                <span className="font-bold text-slate-800 font-mono">
+                  {activeShiftDetail.shift?.startTime} — {activeShiftDetail.shift?.endTime} ({activeShiftDetail.shift?.durationHours} giờ)
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <span className="text-slate-500">Cơ sở làm việc:</span>
+                <span className="font-bold text-slate-800">{store?.name}</span>
+              </div>
+
+              <div>
+                <span className="text-slate-500 block mb-2 font-semibold">
+                  Đồng nghiệp cùng ca ({activeShiftDetail.coworkers?.length || 0}):
+                </span>
+                {!activeShiftDetail.coworkers || activeShiftDetail.coworkers.length === 0 ? (
+                  <p className="text-slate-400 italic text-[11px]">
+                    Bạn là nhân sự duy nhất được phân ca này.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {activeShiftDetail.coworkers.map((c) => (
+                      <div key={c._id} className="p-2 bg-slate-50 rounded-xl flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-orange-100 text-[#EA701B] font-bold text-[10px] flex items-center justify-center">
+                          {c.name ? c.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <span className="font-semibold text-slate-800">{c.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+              <button
+                type="button"
+                onClick={() => setActiveShiftDetail(null)}
+                className="w-full py-2.5 bg-[#EA701B] text-white font-bold rounded-xl text-xs"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MobileAppView;
