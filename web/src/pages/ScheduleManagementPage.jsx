@@ -8,6 +8,7 @@ import {
   Plus,
   Trash2,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Clock,
   User,
@@ -628,10 +629,10 @@ export const ScheduleManagementPage = () => {
       {/* Schedule Conflicts Banner */}
       {scheduleConflicts.length > 0 && (
         <div className="p-4 rounded-2xl bg-red-50 border-2 border-red-200 text-red-800 flex items-start gap-3 shadow-xs animate-fade-in">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
           <div className="flex-1 text-xs">
             <h4 className="font-extrabold text-sm text-red-900 mb-1 flex items-center gap-1.5">
-              <span>⚠️ Phát hiện {scheduleConflicts.length} ca làm việc bị trùng khung giờ!</span>
+              <span>Phát hiện {scheduleConflicts.length} ca làm việc bị trùng khung giờ!</span>
             </h4>
             <p className="text-slate-600 leading-relaxed">
               Các ca có nhân viên bị phân công trùng giờ làm đã được <b>đánh dấu viền đỏ</b> trên bảng xếp ca bên dưới.
@@ -752,8 +753,8 @@ export const ScheduleManagementPage = () => {
                               <div>
                                 <div className="flex items-center justify-between mb-1">
                                   {conflictShift ? (
-                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-red-600 flex items-center gap-0.5">
-                                      <AlertCircle className="w-3 h-3 text-red-600 shrink-0" />
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-red-600 flex items-center gap-1">
+                                      <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
                                       Trùng ca!
                                     </span>
                                   ) : (
@@ -939,7 +940,7 @@ export const ScheduleManagementPage = () => {
                         className={conflict ? 'text-red-500 bg-red-50' : ''}
                       >
                         {conflict
-                          ? `⚠️ ${m.user?.name || m.fullName} (Trùng ca: ${conflict.name} ${conflict.startTime}-${conflict.endTime})`
+                          ? `[Trùng ca: ${conflict.name} (${conflict.startTime} - ${conflict.endTime})] ${m.user?.name || m.fullName}`
                           : `${m.user?.name || m.fullName} (${m.user?.email || m.email}) — ${formatVND(m.hourlyWage)}/h`}
                       </option>
                     );
@@ -957,7 +958,7 @@ export const ScheduleManagementPage = () => {
                 const name = member?.user?.name || member?.fullName || 'Nhân viên này';
                 return (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-700 animate-fade-in">
-                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold text-red-800">Cảnh báo: Trùng giờ làm việc!</p>
                       <p className="mt-0.5 text-slate-600 leading-relaxed">
