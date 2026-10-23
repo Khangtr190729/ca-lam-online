@@ -65,7 +65,7 @@ export const EmployeeManagementPage = () => {
         const normalized = rawList.map((m) => ({
           ...m,
           _id: m.memberId || m._id,
-          role: m.roleInStore || m.role,
+          role: m.isOwner ? 'ADMIN' : (m.roleInStore || m.role),
           user: {
             _id: m.userId || m.user?._id,
             name: m.fullName || m.user?.fullName || m.user?.name,
@@ -268,7 +268,7 @@ export const EmployeeManagementPage = () => {
                   const roleBadge = getRoleLabel(member.role);
                   const typeBadge = getEmploymentTypeLabel(member.employmentType);
                   const isCurrentSelf = member.user?._id === user?._id;
-                  const isStoreOwner = member.role === 'ADMIN';
+                  const isStoreOwner = member.isOwner || member.role === 'ADMIN';
 
                   return (
                     <tr key={member._id} className="hover:bg-orange-50/20 transition">

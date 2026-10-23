@@ -24,7 +24,7 @@ const verifyStoreAccess = async (storeId, userId) => {
     status: 'ACTIVE',
   });
 
-  const isManager = isOwner || (member && member.roleInStore === 'MANAGER');
+  const isManager = isOwner || (member && ['MANAGER', 'ADMIN'].includes(member.roleInStore));
 
   return { store, isOwner, isManager, currentMember: member };
 };
@@ -60,20 +60,23 @@ export const getStoreMembers = async (req, res) => {
       success: true,
       storeName: access.store.name,
       total: members.length,
-      members: members.map((m) => ({
-        memberId: m._id,
-        userId: m.userId ? m.userId._id : null,
-        fullName: m.userId ? m.userId.fullName : 'N/A',
-        email: m.userId ? m.userId.email : 'N/A',
-        gender: m.userId ? m.userId.gender : 'N/A',
-        age: m.userId ? m.userId.age : 'N/A',
-        avatar: m.userId ? m.userId.avatar : '',
-        roleInStore: m.roleInStore,
-        employmentType: m.employmentType,
-        hourlyWage: m.hourlyWage, // Mức lương theo giờ (VNĐ/h)
-        joinedAt: m.joinedAt,
-        isOwner: access.store.ownerId.toString() === (m.userId ? m.userId._id.toString() : ''),
-      })),
+      members: members.map((m) => {
+        const isOwner = access.store.ownerId.toString() === (m.userId ? m.userId._id.toString() : '');
+        return {
+          memberId: m._id,
+          userId: m.userId ? m.userId._id : null,
+          fullName: m.userId ? m.userId.fullName : 'N/A',
+          email: m.userId ? m.userId.email : 'N/A',
+          gender: m.userId ? m.userId.gender : 'N/A',
+          age: m.userId ? m.userId.age : 'N/A',
+          avatar: m.userId ? m.userId.avatar : '',
+          roleInStore: isOwner ? 'ADMIN' : m.roleInStore,
+          employmentType: m.employmentType,
+          hourlyWage: m.hourlyWage, // Mức lương theo giờ (VNĐ/h)
+          joinedAt: m.joinedAt,
+          isOwner,
+        };
+      }),
     });
   } catch (error) {
     console.error('Lỗi lấy danh sách nhân viên:', error);

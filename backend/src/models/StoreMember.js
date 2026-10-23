@@ -14,7 +14,7 @@ const storeMemberSchema = new mongoose.Schema(
     },
     roleInStore: {
       type: String,
-      enum: ['MANAGER', 'EMPLOYEE'],
+      enum: ['ADMIN', 'MANAGER', 'EMPLOYEE'],
       default: 'EMPLOYEE',
       required: true,
     },

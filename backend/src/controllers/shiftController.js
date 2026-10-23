@@ -25,7 +25,7 @@ const verifyStoreAccess = async (storeId, userId) => {
   });
 
   const isMember = isOwner || !!member;
-  const isManager = isOwner || (member && member.roleInStore === 'MANAGER');
+  const isManager = isOwner || (member && ['MANAGER', 'ADMIN'].includes(member.roleInStore));
 
   return { store, isOwner, isManager, isMember };
 };

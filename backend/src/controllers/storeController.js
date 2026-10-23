@@ -47,11 +47,11 @@ export const createStore = async (req, res) => {
       ownerId: userId,
     });
 
-    // 5. Tự động thêm chủ quán vào bảng thành viên với vai trò Quản lý / Điều hành
+    // 5. Tự động thêm chủ quán vào bảng thành viên với vai trò Chủ cửa hàng (ADMIN)
     await StoreMember.create({
       storeId: newStore._id,
       userId: userId,
-      roleInStore: 'MANAGER',
+      roleInStore: 'ADMIN',
       employmentType: 'FULL_TIME',
       hourlyWage: 0,
       status: 'ACTIVE',
