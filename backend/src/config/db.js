@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
  */
 const connectDB = async () => {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/store_schedules';
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/store_schedules';
 
     const conn = await mongoose.connect(mongoUri, {
       dbName: 'store_schedules', // Chỉ định chính xác tên database theo yêu cầu
