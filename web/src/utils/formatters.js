@@ -139,3 +139,31 @@ export const getEmploymentTypeLabel = (type) => {
       return { text: 'Bán thời gian (Part-time)', badge: 'bg-amber-100 text-amber-700 border-amber-200' };
   }
 };
+
+/**
+ * Convert time string "HH:MM" to minutes from 00:00
+ */
+export const timeToMinutes = (timeStr) => {
+  if (!timeStr || typeof timeStr !== 'string') return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/**
+ * Check if two shifts overlap in time:
+ * Overlaps if and only if start1 < end2 && start2 < end1
+ */
+export const checkShiftOverlap = (shift1, shift2) => {
+  if (!shift1 || !shift2) return false;
+  let start1 = timeToMinutes(shift1.startTime);
+  let end1 = timeToMinutes(shift1.endTime);
+  let start2 = timeToMinutes(shift2.startTime);
+  let end2 = timeToMinutes(shift2.endTime);
+
+  // If overnight shift (ends next day)
+  if (end1 <= start1) end1 += 1440;
+  if (end2 <= start2) end2 += 1440;
+
+  return start1 < end2 && start2 < end1;
+};
+

@@ -28,7 +28,8 @@ import {
   formatWeekRange,
   formatVND,
   formatDateToISO,
-  getWeekNumberAndYear
+  getWeekNumberAndYear,
+  checkShiftOverlap
 } from '../utils/formatters';
 
 export const ScheduleManagementPage = () => {
@@ -153,6 +154,99 @@ export const ScheduleManagementPage = () => {
     }
   };
 
+  // Kiểm tra ca bị trùng khung giờ của một nhân viên trong ngày chỉ định
+  const getConflictingShift = useCallback(
+    (userId, dateStr, targetShiftId) => {
+      if (!userId || !dateStr || !targetShiftId) return null;
+      const targetShift = shifts.find((s) => s._id === targetShiftId);
+      if (!targetShift) return null;
+
+      const otherAssignments = assignments.filter(
+        (a) => a.date === dateStr && a.userId === userId && a.shiftId !== targetShiftId
+      );
+
+      for (const a of otherAssignments) {
+        const otherShift = shifts.find((s) => s._id === a.shiftId) || a.shiftObj;
+        if (otherShift && checkShiftOverlap(targetShift, otherShift)) {
+          return otherShift;
+        }
+      }
+      return null;
+    },
+    [assignments, shifts]
+  );
+
+  // Kiểm tra xem một phân công cụ thể có đang bị xung đột trùng ca trên bảng không
+  const getAssignmentConflict = useCallback(
+    (assignment) => {
+      if (!assignment || !assignment.userId || !assignment.date) return null;
+      const targetShift = shifts.find((s) => s._id === assignment.shiftId) || assignment.shiftObj;
+      if (!targetShift) return null;
+
+      const conflicting = assignments.find((a) => {
+        if (
+          a === assignment ||
+          a.shiftId === assignment.shiftId ||
+          a.date !== assignment.date ||
+          a.userId !== assignment.userId
+        ) {
+          return false;
+        }
+        const otherShift = shifts.find((s) => s._id === a.shiftId) || a.shiftObj;
+        return otherShift && checkShiftOverlap(targetShift, otherShift);
+      });
+
+      if (conflicting) {
+        return shifts.find((s) => s._id === conflicting.shiftId) || conflicting.shiftObj;
+      }
+      return null;
+    },
+    [assignments, shifts]
+  );
+
+  // Danh sách các cặp ca bị trùng lặp trong tuần
+  const scheduleConflicts = useMemo(() => {
+    const conflicts = [];
+    assignments.forEach((a1, idx1) => {
+      if (!a1.userId || !a1.date || !a1.shiftId) return;
+      const shift1 = shifts.find((s) => s._id === a1.shiftId) || a1.shiftObj;
+      if (!shift1) return;
+
+      assignments.forEach((a2, idx2) => {
+        if (idx1 >= idx2) return;
+        if (a1.date !== a2.date || a1.userId !== a2.userId) return;
+
+        const shift2 = shifts.find((s) => s._id === a2.shiftId) || a2.shiftObj;
+        if (!shift2) return;
+
+        if (checkShiftOverlap(shift1, shift2)) {
+          const emp = members.find((m) => (m.user?._id || m.userId) === a1.userId);
+          const empName = emp?.user?.name || emp?.fullName || a1.userObj?.name || 'Nhân viên';
+          conflicts.push({
+            date: a1.date,
+            userId: a1.userId,
+            employeeName: empName,
+            shift1,
+            shift2
+          });
+        }
+      });
+    });
+    return conflicts;
+  }, [assignments, shifts, members]);
+
+  // Hàm xác thực toàn bộ bảng phân ca không có xung đột giờ làm
+  const validateAssignmentsNoOverlap = useCallback(() => {
+    if (scheduleConflicts.length > 0) {
+      const first = scheduleConflicts[0];
+      return {
+        hasError: true,
+        message: `Lỗi trùng ca: Nhân viên "${first.employeeName}" bị trùng giờ làm việc vào ngày ${first.date} giữa ca "${first.shift1.name}" (${first.shift1.startTime} - ${first.shift1.endTime}) và ca "${first.shift2.name}" (${first.shift2.startTime} - ${first.shift2.endTime}). Vui lòng điều chỉnh lại trước khi lưu!`
+      };
+    }
+    return { hasError: false };
+  }, [scheduleConflicts]);
+
   // Open modal to assign or change an assignment
   const handleCellClick = (dateStr, shiftId) => {
     const existingIndex = assignments.findIndex(
@@ -178,6 +272,18 @@ export const ScheduleManagementPage = () => {
         );
       }
     } else {
+      // Check conflict before adding
+      const conflict = getConflictingShift(assignModal.userId, assignModal.date, assignModal.shiftId);
+      if (conflict) {
+        const selectedMember = members.find((m) => (m.user?._id || m.userId) === assignModal.userId);
+        const name = selectedMember?.user?.name || selectedMember?.fullName || 'Nhân viên';
+        setFeedback({
+          type: 'error',
+          message: `Không thể phân ca: Nhân viên "${name}" đã có ca "${conflict.name}" (${conflict.startTime} - ${conflict.endTime}) trong cùng khung giờ ngày ${assignModal.date}!`
+        });
+        return;
+      }
+
       const selectedMember = members.find((m) => (m.user?._id || m.userId) === assignModal.userId);
       const selectedShift = shifts.find((s) => s._id === assignModal.shiftId);
       const day = daysOfWeek.find((d) => d.dateStr === assignModal.date);
@@ -215,6 +321,12 @@ export const ScheduleManagementPage = () => {
   // Save Draft Schedule
   const handleSaveDraft = async () => {
     if (!store?._id) return;
+    const validation = validateAssignmentsNoOverlap();
+    if (validation.hasError) {
+      setFeedback({ type: 'error', message: validation.message });
+      return;
+    }
+
     try {
       setSaving(true);
       setFeedback(null);
@@ -251,6 +363,13 @@ export const ScheduleManagementPage = () => {
   // Publish Schedule & Send Emails
   const handleConfirmPublish = async () => {
     if (!store?._id) return;
+    const validation = validateAssignmentsNoOverlap();
+    if (validation.hasError) {
+      setPublishModalOpen(false);
+      setFeedback({ type: 'error', message: validation.message });
+      return;
+    }
+
     try {
       setSaving(true);
       setFeedback(null);
@@ -463,7 +582,14 @@ export const ScheduleManagementPage = () => {
           <button
             type="button"
             disabled={saving}
-            onClick={() => setPublishModalOpen(true)}
+            onClick={() => {
+              const val = validateAssignmentsNoOverlap();
+              if (val.hasError) {
+                setFeedback({ type: 'error', message: val.message });
+                return;
+              }
+              setPublishModalOpen(true);
+            }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#EA701B] hover:bg-[#D55E0D] text-white text-sm font-bold transition shadow-md shadow-orange-500/20 disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
@@ -496,6 +622,32 @@ export const ScheduleManagementPage = () => {
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* Schedule Conflicts Banner */}
+      {scheduleConflicts.length > 0 && (
+        <div className="p-4 rounded-2xl bg-red-50 border-2 border-red-200 text-red-800 flex items-start gap-3 shadow-xs animate-fade-in">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs">
+            <h4 className="font-extrabold text-sm text-red-900 mb-1 flex items-center gap-1.5">
+              <span>⚠️ Phát hiện {scheduleConflicts.length} ca làm việc bị trùng khung giờ!</span>
+            </h4>
+            <p className="text-slate-600 leading-relaxed">
+              Các ca có nhân viên bị phân công trùng giờ làm đã được <b>đánh dấu viền đỏ</b> trên bảng xếp ca bên dưới.
+              Một nhân viên không thể làm 2 ca trong cùng một khoảng thời gian. Vui lòng bấm vào các ô viền đỏ để đổi nhân viên hoặc hủy ca trước khi lưu / xuất bản lịch.
+            </p>
+            <ul className="mt-2.5 space-y-1.5 bg-white/70 p-2.5 rounded-xl border border-red-100">
+              {scheduleConflicts.map((c, i) => (
+                <li key={i} className="font-semibold text-red-700 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                  <span>
+                    <b>{c.employeeName}</b> ngày {c.date}: Trùng giữa <u>{c.shift1.name}</u> ({c.shift1.startTime} - {c.shift1.endTime}) và <u>{c.shift2.name}</u> ({c.shift2.startTime} - {c.shift2.endTime})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
@@ -581,6 +733,8 @@ export const ScheduleManagementPage = () => {
                           assignment.userObj
                         : null;
 
+                      const conflictShift = assignment ? getAssignmentConflict(assignment) : null;
+
                       return (
                         <td
                           key={day.dateStr}
@@ -589,23 +743,53 @@ export const ScheduleManagementPage = () => {
                           {assignment && assignedUser ? (
                             <div
                               onClick={() => handleCellClick(day.dateStr, shift._id)}
-                              className="group relative h-full bg-[#FFF0E5] hover:bg-[#FFE5D1] border border-orange-200/80 rounded-xl p-2.5 flex flex-col justify-between cursor-pointer transition shadow-xs"
+                              className={`group relative h-full rounded-xl p-2.5 flex flex-col justify-between cursor-pointer transition shadow-xs ${
+                                conflictShift
+                                  ? 'bg-red-50 hover:bg-red-100/90 border-2 border-red-400 ring-1 ring-red-400/50'
+                                  : 'bg-[#FFF0E5] hover:bg-[#FFE5D1] border border-orange-200/80'
+                              }`}
                             >
                               <div>
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#EA701B]">
-                                    Đã phân ca
-                                  </span>
-                                  <div className="w-5 h-5 rounded-full bg-[#EA701B] text-white text-[10px] font-bold flex items-center justify-center">
+                                  {conflictShift ? (
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-red-600 flex items-center gap-0.5">
+                                      <AlertCircle className="w-3 h-3 text-red-600 shrink-0" />
+                                      Trùng ca!
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#EA701B]">
+                                      Đã phân ca
+                                    </span>
+                                  )}
+                                  <div
+                                    className={`w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                      conflictShift ? 'bg-red-500' : 'bg-[#EA701B]'
+                                    }`}
+                                  >
                                     {assignedUser.name ? assignedUser.name.charAt(0).toUpperCase() : 'U'}
                                   </div>
                                 </div>
-                                <p className="text-xs font-bold text-slate-800 line-clamp-1">
+                                <p
+                                  className={`text-xs font-bold line-clamp-1 ${
+                                    conflictShift ? 'text-red-900 font-extrabold' : 'text-slate-800'
+                                  }`}
+                                >
                                   {assignedUser.name}
                                 </p>
+                                {conflictShift && (
+                                  <p className="text-[10px] text-red-600 font-semibold line-clamp-1 mt-0.5">
+                                    Trùng: {conflictShift.name} ({conflictShift.startTime}-{conflictShift.endTime})
+                                  </p>
+                                )}
                               </div>
-                              <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-[#EA701B]" />
+                              <div
+                                className={`text-[10px] font-medium flex items-center gap-1 ${
+                                  conflictShift ? 'text-red-600 font-bold' : 'text-slate-500'
+                                }`}
+                              >
+                                <Clock
+                                  className={`w-3 h-3 ${conflictShift ? 'text-red-500' : 'text-[#EA701B]'}`}
+                                />
                                 <span>{shift.startTime} - {shift.endTime}</span>
                               </div>
                             </div>
@@ -746,14 +930,43 @@ export const ScheduleManagementPage = () => {
                   <option value="">-- Chưa chọn nhân viên (Trống) --</option>
                   {members.map((m) => {
                     const uid = m.user?._id || m.userId;
+                    const conflict = getConflictingShift(uid, assignModal.date, assignModal.shiftId);
                     return (
-                      <option key={uid} value={uid}>
-                        {m.user?.name || m.fullName} ({m.user?.email || m.email}) — {formatVND(m.hourlyWage)}/h
+                      <option
+                        key={uid}
+                        value={uid}
+                        disabled={!!conflict}
+                        className={conflict ? 'text-red-500 bg-red-50' : ''}
+                      >
+                        {conflict
+                          ? `⚠️ ${m.user?.name || m.fullName} (Trùng ca: ${conflict.name} ${conflict.startTime}-${conflict.endTime})`
+                          : `${m.user?.name || m.fullName} (${m.user?.email || m.email}) — ${formatVND(m.hourlyWage)}/h`}
                       </option>
                     );
                   })}
                 </select>
               </div>
+
+              {/* Conflict warning in modal if selected user has conflict */}
+              {(() => {
+                const conflict = assignModal.userId
+                  ? getConflictingShift(assignModal.userId, assignModal.date, assignModal.shiftId)
+                  : null;
+                if (!conflict) return null;
+                const member = members.find((m) => (m.user?._id || m.userId) === assignModal.userId);
+                const name = member?.user?.name || member?.fullName || 'Nhân viên này';
+                return (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-700 animate-fade-in">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-red-800">Cảnh báo: Trùng giờ làm việc!</p>
+                      <p className="mt-0.5 text-slate-600 leading-relaxed">
+                        <b>{name}</b> đã được phân công ca <b>"{conflict.name}" ({conflict.startTime} - {conflict.endTime})</b> vào ngày này. Một người không thể làm 2 ca trong cùng khung giờ!
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="pt-2 flex items-center justify-between gap-3">
                 {assignModal.assignmentIndex >= 0 && (
@@ -776,8 +989,12 @@ export const ScheduleManagementPage = () => {
                 </button>
                 <button
                   type="button"
+                  disabled={
+                    !assignModal.userId ||
+                    !!getConflictingShift(assignModal.userId, assignModal.date, assignModal.shiftId)
+                  }
                   onClick={handleSaveAssignment}
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs"
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Lưu phân ca
                 </button>

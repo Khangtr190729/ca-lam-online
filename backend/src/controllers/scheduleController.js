@@ -34,6 +34,31 @@ const verifyStoreAccess = async (storeId, userId) => {
 };
 
 /**
+ * Chuyển đổi định dạng thời gian "HH:MM" sang số phút
+ */
+const timeToMinutes = (timeStr) => {
+  if (!timeStr || typeof timeStr !== 'string') return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/**
+ * Kiểm tra xem 2 ca làm việc có bị trùng hoặc giao thoa khung giờ hay không
+ */
+const checkShiftOverlap = (shift1, shift2) => {
+  if (!shift1 || !shift2) return false;
+  let start1 = timeToMinutes(shift1.startTime);
+  let end1 = timeToMinutes(shift1.endTime);
+  let start2 = timeToMinutes(shift2.startTime);
+  let end2 = timeToMinutes(shift2.endTime);
+
+  if (end1 <= start1) end1 += 1440;
+  if (end2 <= start2) end2 += 1440;
+
+  return start1 < end2 && start2 < end1;
+};
+
+/**
  * Xử lý tính toán tiền lương cho từng ca và tổng kết lương cả tuần
  */
 const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
@@ -56,7 +81,34 @@ const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
     }
   });
 
-  // 3. Tính toán cho từng ca phân công
+  // 3. Kiểm tra logic trùng giờ làm việc: 1 người không thể làm 2 ca trùng/giao thoa giờ trong 1 ngày
+  const userDateShifts = {};
+  for (const item of rawAssignments) {
+    if (!item.date || !item.shiftId || !item.userId) continue;
+    const shift = shiftMap[item.shiftId.toString()];
+    const member = memberMap[item.userId.toString()];
+    if (!shift || !member) continue;
+
+    const key = `${item.date}_${item.userId.toString()}`;
+    if (!userDateShifts[key]) {
+      userDateShifts[key] = [];
+    }
+
+    for (const existingShift of userDateShifts[key]) {
+      if (checkShiftOverlap(shift, existingShift)) {
+        const memberName = member.userId ? member.userId.fullName : 'Nhân viên';
+        const err = new Error(
+          `Lỗi trùng ca: Nhân viên "${memberName}" bị trùng giờ làm việc vào ngày ${item.date} giữa ca "${existingShift.name}" (${existingShift.startTime} - ${existingShift.endTime}) và ca "${shift.name}" (${shift.startTime} - ${shift.endTime}). Một người không thể làm 2 ca trong cùng khung giờ!`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    userDateShifts[key].push(shift);
+  }
+
+  // 4. Tính toán cho từng ca phân công
   const processedAssignments = [];
   const salaryMap = {};
 
@@ -295,9 +347,9 @@ export const saveDraftSchedule = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi lưu bản nháp lịch:', error);
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
-      message: `Lỗi máy chủ khi lưu bản nháp: ${error.message}`,
+      message: error.message || 'Lỗi máy chủ khi lưu bản nháp',
     });
   }
 };
@@ -401,9 +453,9 @@ export const publishSchedule = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi xuất bản lịch & gửi mail:', error);
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
-      message: `Lỗi máy chủ khi xuất bản lịch: ${error.message}`,
+      message: error.message || 'Lỗi máy chủ khi xuất bản lịch',
     });
   }
 };
