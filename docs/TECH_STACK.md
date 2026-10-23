@@ -86,6 +86,7 @@ Máy chủ REST API xử lý nghiệp vụ, xác thực và lưu trữ dữ li�
 | **JSON Web Token (JWT)** | Tạo và xác thực access token không trạng thái | `npm install jsonwebtoken` |
 | **bcryptjs / bcrypt** | Băm mật khẩu một chiều an toàn | `npm install bcryptjs` |
 | **Zod** | Schema kiểm tra tính hợp lệ của dữ liệu đầu vào | `npm install zod` |
+| **Nodemailer** | Gửi email tự động (lịch làm việc, mã mời vào quán) | `npm install nodemailer` |
 | **Dotenv & Cors** | Đọc biến môi trường và cấu hình CORS | `npm install dotenv cors` |
 | **Nodemon** | Tự động tải lại máy chủ khi sửa code | `npm install -D nodemon` |
 
@@ -94,7 +95,7 @@ Máy chủ REST API xử lý nghiệp vụ, xác thực và lưu trữ dữ li�
 cd backend
 
 # 1. Cài đặt các thư viện ứng dụng (dependencies)
-npm install express mongoose jsonwebtoken bcryptjs zod dotenv cors
+npm install express mongoose jsonwebtoken bcryptjs zod nodemailer dotenv cors
 
 # 2. Cài đặt công cụ phát triển (devDependencies)
 npm install -D nodemon
