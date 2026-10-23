@@ -549,3 +549,99 @@ export const evaluateShift = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Lấy thống kê lịch làm việc & dự toán tiền lương theo tháng (và tổng số ca toàn thời gian)
+ * @route   GET /api/stores/:storeId/schedules/monthly-stats?month=10&year=2026
+ * @access  Private (Mọi thành viên trong quán)
+ */
+export const getMonthlyScheduleStats = async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const userId = req.user.id;
+
+    const access = await verifyStoreAccess(storeId, userId);
+    if (access.error) {
+      return res.status(404).json({ success: false, message: access.error });
+    }
+
+    if (!access.isMember) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không thuộc cửa hàng này.',
+      });
+    }
+
+    // Xác định tháng và năm truy vấn (mặc định tháng hiện tại theo múi giờ VN UTC+7)
+    const now = new Date();
+    const vnMonthStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      month: '2-digit',
+    }).format(now);
+    const vnYearStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+    }).format(now);
+
+    const targetMonth = req.query.month ? Number(req.query.month) : Number(vnMonthStr);
+    const targetYear = req.query.year ? Number(req.query.year) : Number(vnYearStr);
+
+    const monthPrefix = `${targetYear}-${String(targetMonth).padStart(2, '0')}`; // VD: "2026-10"
+
+    // Lấy toàn bộ schedules của cửa hàng
+    const schedules = await Schedule.find({ storeId }).lean();
+
+    let monthAssignedShifts = 0;
+    let monthCompletedShifts = 0;
+    let monthMissedShifts = 0;
+    let monthTotalHours = 0;
+    let monthTotalPayroll = 0;
+
+    let allTimeAssignedShifts = 0;
+    let allTimePayroll = 0;
+
+    schedules.forEach((sched) => {
+      if (sched.assignments && Array.isArray(sched.assignments)) {
+        sched.assignments.forEach((a) => {
+          allTimeAssignedShifts += 1;
+          const isMissed = a.attendanceStatus === 'MISSED';
+          const pay = !isMissed ? (a.totalPay ?? ((a.hours || 4) * (a.hourlyWage || 20000))) : 0;
+          allTimePayroll += pay;
+
+          // Kiểm tra xem ca có thuộc tháng đang xét không
+          if (a.date && String(a.date).startsWith(monthPrefix)) {
+            monthAssignedShifts += 1;
+            if (isMissed) {
+              monthMissedShifts += 1;
+            } else {
+              monthCompletedShifts += 1;
+              monthTotalHours += (a.hours || 4);
+              monthTotalPayroll += pay;
+            }
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      month: targetMonth,
+      year: targetYear,
+      monthAssignedShifts,
+      monthCompletedShifts,
+      monthMissedShifts,
+      monthTotalHours,
+      monthTotalPayroll,
+      allTimeAssignedShifts,
+      allTimePayroll,
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy thống kê tháng:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy thống kê tháng.',
+      error: error.message,
+    });
+  }
+};
+

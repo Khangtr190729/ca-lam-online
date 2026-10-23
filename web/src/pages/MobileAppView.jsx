@@ -426,8 +426,9 @@ export const MobileAppView = () => {
                       <p className="text-xs font-semibold text-[#EA701B]">
                         {store.name}
                       </p>
-                      <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
-                        Xin chào, {user?.name?.split(' ').pop() || 'bạn'} 👋
+                      <h2 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
+                        <span>Xin chào, {user?.name?.split(' ').pop() || 'bạn'}!</span>
+                        <Sparkles className="w-4 h-4 text-amber-500" />
                       </h2>
                     </div>
 

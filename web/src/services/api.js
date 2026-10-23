@@ -90,6 +90,13 @@ export const scheduleApi = {
     api.post(`/stores/${storeId}/schedules/publish`, payload),
   evaluateShift: (storeId, payload) =>
     api.put(`/stores/${storeId}/schedules/evaluate-shift`, payload),
+  getMonthlyStats: (storeId, month, year) => {
+    let url = `/stores/${storeId}/schedules/monthly-stats`;
+    if (month && year) {
+      url += `?month=${month}&year=${year}`;
+    }
+    return api.get(url);
+  },
   getMySchedule: (week, year) =>
     api.get(`/schedules/my-schedule?week=${week}&year=${year}`)
 };

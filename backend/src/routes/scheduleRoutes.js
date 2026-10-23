@@ -6,6 +6,7 @@ import {
   getMySchedule,
   autoGenerateSchedule,
   evaluateShift,
+  getMonthlyScheduleStats,
 } from '../controllers/scheduleController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 
@@ -15,6 +16,9 @@ storeScheduleRouter.use(protect);
 
 // 1. Lấy lịch làm việc của quán theo tuần: GET /api/stores/:storeId/schedules?week=43&year=2026
 storeScheduleRouter.get('/', getStoreSchedule);
+
+// Thống kê lịch làm việc & dự toán lương theo tháng: GET /api/stores/:storeId/schedules/monthly-stats
+storeScheduleRouter.get('/monthly-stats', getMonthlyScheduleStats);
 
 // 2. Lưu bản nháp (DRAFT) xếp lịch tuần: POST /api/stores/:storeId/schedules/save-draft
 storeScheduleRouter.post('/save-draft', saveDraftSchedule);
