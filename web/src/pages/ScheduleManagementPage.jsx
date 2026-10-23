@@ -84,6 +84,22 @@ export const isShiftPassedOrCompleted = (dateStr, shift) => {
   return currentMinutes >= endMinutes;
 };
 
+// Kiểm tra ca làm việc đã bắt đầu hoặc đã qua hay chưa (ca đang diễn ra hoặc đã kết thúc)
+// Ràng buộc: Chỉ ca đang diễn ra hoặc quá khứ mới được quyền đánh giá, ca tương lai không được đánh giá.
+export const isShiftStartedOrPassed = (dateStr, shift) => {
+  if (!dateStr || !shift) return false;
+  const todayStr = formatDateToISO(new Date());
+
+  if (dateStr < todayStr) return true;
+  if (dateStr > todayStr) return false;
+
+  // Nếu là ngày hôm nay: so sánh giờ hiện tại với giờ bắt đầu của ca
+  const currentMinutes = timeToMinutes(getCurrentVNTime());
+  const startMinutes = timeToMinutes(shift.startTime);
+
+  return currentMinutes >= startMinutes;
+};
+
 export const ScheduleManagementPage = () => {
   const { store, user, roleInStore, refreshUser } = useAuth();
   const [currentMonday, setCurrentMonday] = useState(() => getMondayOfWeek());
@@ -178,6 +194,10 @@ export const ScheduleManagementPage = () => {
             dayOfWeek: a.dayOfWeek,
             shiftId: sId,
             userId: uId,
+            attendanceStatus: a.attendanceStatus || 'COMPLETED',
+            missedReason: a.missedReason || '',
+            evaluatedAt: a.evaluatedAt || null,
+            evaluatedBy: a.evaluatedBy || null,
             userObj: { _id: uId, name: uName },
             shiftObj: typeof a.shiftId === 'object' && a.shiftId !== null ? a.shiftId : null,
           };
@@ -420,6 +440,10 @@ export const ScheduleManagementPage = () => {
       dayOfWeek: day?.dayName || 'Thứ Hai',
       shiftId: sid,
       userId: uid,
+      attendanceStatus: 'COMPLETED',
+      missedReason: '',
+      evaluatedAt: null,
+      evaluatedBy: null,
       userObj: selectedMember?.user || { _id: uid, name: 'Nhân viên' },
       shiftObj: targetShift,
     };
@@ -496,6 +520,8 @@ export const ScheduleManagementPage = () => {
             dayOfWeek: day?.dayName || 'Thứ Hai',
             shiftId: getShiftId(a.shiftId),
             userId: getUserId(a.userId),
+            attendanceStatus: a.attendanceStatus || 'COMPLETED',
+            missedReason: a.missedReason || '',
           };
         }),
       };
@@ -562,6 +588,8 @@ export const ScheduleManagementPage = () => {
             dayOfWeek: day?.dayName || 'Thứ Hai',
             shiftId: getShiftId(a.shiftId),
             userId: getUserId(a.userId),
+            attendanceStatus: a.attendanceStatus || 'COMPLETED',
+            missedReason: a.missedReason || '',
             hourlyWage: a.hourlyWage,
           };
         }),
@@ -583,6 +611,10 @@ export const ScheduleManagementPage = () => {
             dayOfWeek: a.dayOfWeek,
             shiftId: sId,
             userId: uId,
+            attendanceStatus: a.attendanceStatus || 'COMPLETED',
+            missedReason: a.missedReason || '',
+            evaluatedAt: a.evaluatedAt || null,
+            evaluatedBy: a.evaluatedBy || null,
             userObj: { _id: uId, name: uName },
             shiftObj: typeof a.shiftId === 'object' && a.shiftId !== null ? a.shiftId : null,
           };
@@ -623,6 +655,8 @@ export const ScheduleManagementPage = () => {
             dayOfWeek: day?.dayName || 'Thứ Hai',
             shiftId: getShiftId(a.shiftId),
             userId: getUserId(a.userId),
+            attendanceStatus: a.attendanceStatus || 'COMPLETED',
+            missedReason: a.missedReason || '',
           };
         }),
       };
@@ -642,7 +676,63 @@ export const ScheduleManagementPage = () => {
     }
   };
 
+  // Đánh giá ca làm việc (Đánh dấu không hoàn thành / Khôi phục ca)
+  const handleEvaluateShift = async ({ date, shiftId, userId, attendanceStatus, missedReason }) => {
+    if (!store?._id) return;
+    try {
+      setSaving(true);
+      setFeedback(null);
+      const res = await scheduleApi.evaluateShift(store._id, {
+        week,
+        year,
+        weekStart: currentMonday,
+        date,
+        shiftId: getShiftId(shiftId),
+        userId: getUserId(userId),
+        attendanceStatus,
+        missedReason: missedReason || '',
+      });
+
+      if (res.success) {
+        setAssignments((prev) =>
+          prev.map((a) => {
+            if (
+              a.date === date &&
+              getShiftId(a.shiftId) === getShiftId(shiftId) &&
+              getUserId(a.userId) === getUserId(userId)
+            ) {
+              return {
+                ...a,
+                attendanceStatus,
+                missedReason: attendanceStatus === 'MISSED' ? (missedReason || '') : '',
+                evaluatedAt: new Date().toISOString(),
+                evaluatedBy: user?._id,
+              };
+            }
+            return a;
+          })
+        );
+
+        setFeedback({
+          type: 'success',
+          message:
+            attendanceStatus === 'MISSED'
+              ? `Đã đánh dấu nhân viên không hoàn thành ca và gửi email thông báo trừ tiền lương!`
+              : `Đã khôi phục ca làm việc thành hoàn thành và cộng lại lương cho nhân viên!`,
+        });
+      }
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Không thể cập nhật đánh giá ca làm',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Weekly Payroll Summary calculation
+  // Trừ ca không hoàn thành (attendanceStatus === 'MISSED') ra khỏi tổng lương
   const payrollSummary = useMemo(() => {
     const employeeMap = {};
     members.forEach((m) => {
@@ -653,6 +743,8 @@ export const ScheduleManagementPage = () => {
         hourlyWage: m.hourlyWage || 20000,
         totalHours: 0,
         totalShifts: 0,
+        completedShifts: 0,
+        missedShifts: 0,
         totalWage: 0,
       };
     });
@@ -671,17 +763,27 @@ export const ScheduleManagementPage = () => {
           hourlyWage: 20000,
           totalHours: 0,
           totalShifts: 0,
+          completedShifts: 0,
+          missedShifts: 0,
           totalWage: 0,
         };
       }
 
       employeeMap[uId].totalShifts += 1;
-      employeeMap[uId].totalHours += hours;
+
+      // Nếu không hoàn thành (MISSED) -> Trừ ra khỏi tổng lương và giờ làm
+      if (a.attendanceStatus === 'MISSED') {
+        employeeMap[uId].missedShifts += 1;
+      } else {
+        employeeMap[uId].completedShifts += 1;
+        employeeMap[uId].totalHours += hours;
+      }
     });
 
     let storeTotalPayroll = 0;
     let storeTotalHours = 0;
     let storeTotalShifts = assignments.length;
+    let storeTotalMissedShifts = 0;
 
     const list = Object.values(employeeMap)
       .filter((e) => e.totalShifts > 0)
@@ -690,6 +792,7 @@ export const ScheduleManagementPage = () => {
         e.totalWage = wage;
         storeTotalPayroll += wage;
         storeTotalHours += e.totalHours;
+        storeTotalMissedShifts += e.missedShifts;
         return e;
       });
 
@@ -698,6 +801,7 @@ export const ScheduleManagementPage = () => {
       storeTotalPayroll,
       storeTotalHours,
       storeTotalShifts,
+      storeTotalMissedShifts,
     };
   }, [members, assignments, shifts]);
 
@@ -898,6 +1002,9 @@ export const ScheduleManagementPage = () => {
         getConflictingShift={getConflictingShift}
         getAssignmentConflict={getAssignmentConflict}
         isShiftPassedOrCompleted={isShiftPassedOrCompleted}
+        isShiftStartedOrPassed={isShiftStartedOrPassed}
+        onEvaluateShift={handleEvaluateShift}
+        saving={saving}
         onAddEmployee={handleAddEmployeeToShift}
         onRemoveSingleAssignment={handleRemoveSingleAssignment}
         onClearShiftAssignments={handleClearShiftAssignments}

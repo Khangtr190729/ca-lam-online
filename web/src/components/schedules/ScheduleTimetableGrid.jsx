@@ -153,37 +153,61 @@ export const ScheduleTimetableGrid = ({
                               </span>
                             </div>
 
-                            <div className="space-y-1">
+                              <div className="space-y-1">
                               {cellAssignments.map((a, idx) => {
                                 const aUserId = getUserId(a.userId);
                                 const assignedUser =
                                   members.find((m) => getUserId(m.user?._id || m.userId) === aUserId)?.user ||
                                   a.userObj || { name: 'Nhân viên' };
                                 const conflictShift = getAssignmentConflict(a);
+                                const isMissed = a.attendanceStatus === 'MISSED';
 
                                 return (
                                   <div
                                     key={`${a.userId}_${idx}`}
                                     className={`flex items-center justify-between gap-1 px-1.5 py-1 rounded-lg border text-xs transition ${
-                                      conflictShift
+                                      isMissed
+                                        ? 'bg-rose-50/80 border-rose-200 text-rose-800'
+                                        : conflictShift
                                         ? 'bg-red-100/80 border-red-300 text-red-900 font-bold'
                                         : isPassed
                                         ? 'bg-white border-slate-200 text-slate-700'
                                         : 'bg-white border-orange-100 text-slate-800 hover:border-orange-200'
                                     }`}
+                                    title={
+                                      isMissed
+                                        ? `Vắng mặt / Không hoàn thành (Đã trừ lương)${a.missedReason ? ': ' + a.missedReason : ''}`
+                                        : undefined
+                                    }
                                   >
                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                       <div
                                         className={`w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center shrink-0 ${
-                                          conflictShift ? 'bg-red-600' : isPassed ? 'bg-slate-500' : 'bg-[#EA701B]'
+                                          isMissed
+                                            ? 'bg-rose-500'
+                                            : conflictShift
+                                            ? 'bg-red-600'
+                                            : isPassed
+                                            ? 'bg-slate-500'
+                                            : 'bg-[#EA701B]'
                                         }`}
                                       >
                                         {assignedUser.name ? assignedUser.name.charAt(0).toUpperCase() : 'U'}
                                       </div>
-                                      <span className="truncate font-semibold text-[11px] leading-tight">
+                                      <span
+                                        className={`truncate font-semibold text-[11px] leading-tight ${
+                                          isMissed ? 'line-through text-slate-400' : ''
+                                        }`}
+                                      >
                                         {assignedUser.name}
                                       </span>
                                     </div>
+
+                                    {isMissed && (
+                                      <span className="shrink-0 px-1 py-0.2 rounded bg-rose-200/80 text-rose-800 text-[9px] font-bold">
+                                        Vắng
+                                      </span>
+                                    )}
 
                                     {conflictShift && (
                                       <span
