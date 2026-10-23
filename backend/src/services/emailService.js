@@ -1,11 +1,15 @@
 import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
 
 /**
  * Khởi tạo transporter cho Nodemailer
  */
 const createTransporter = () => {
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
+  // Tải lại các biến từ file .env mới nhất (nếu người dùng vừa cập nhật lại mật khẩu ứng dụng)
+  dotenv.config({ override: true });
+
+  const user = process.env.EMAIL_USER ? process.env.EMAIL_USER.trim() : '';
+  const pass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '';
 
   if (!user || !pass) {
     return null; // Chưa cấu hình email trong .env

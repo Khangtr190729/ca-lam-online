@@ -579,8 +579,10 @@ export const ScheduleManagementPage = () => {
         setScheduleStatus('PUBLISHED');
         setPublishModalOpen(false);
         setFeedback({
-          type: 'success',
-          message: 'Xuất bản lịch thành công! Email thông báo ca làm đã được gửi tới từng nhân viên.'
+          type: res.hasEmailError ? 'warning' : 'success',
+          message:
+            res.message ||
+            'Xuất bản lịch thành công! Email thông báo ca làm đã được gửi tới từng nhân viên.'
         });
       }
     } catch (err) {
@@ -802,14 +804,18 @@ export const ScheduleManagementPage = () => {
           className={`p-4 rounded-xl flex items-center justify-between text-sm font-medium animate-fade-in ${
             feedback.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              : feedback.type === 'warning'
+              ? 'bg-amber-50 text-amber-900 border border-amber-200'
               : 'bg-red-50 text-red-800 border border-red-200'
           }`}
         >
           <div className="flex items-center gap-2.5">
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : feedback.type === 'warning' ? (
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
             ) : (
-              <AlertCircle className="w-5 h-5 text-red-600" />
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
             )}
             <span>{feedback.message}</span>
           </div>
