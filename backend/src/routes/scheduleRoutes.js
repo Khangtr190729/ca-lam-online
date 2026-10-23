@@ -4,6 +4,7 @@ import {
   saveDraftSchedule,
   publishSchedule,
   getMySchedule,
+  autoGenerateSchedule,
 } from '../controllers/scheduleController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 
@@ -17,7 +18,10 @@ storeScheduleRouter.get('/', getStoreSchedule);
 // 2. Lưu bản nháp (DRAFT) xếp lịch tuần: POST /api/stores/:storeId/schedules/save-draft
 storeScheduleRouter.post('/save-draft', saveDraftSchedule);
 
-// 3. Xuất bản (PUBLISHED) & Gửi Email kèm lương: POST /api/stores/:storeId/schedules/publish
+// 3. Tự động xếp lịch tối ưu (DRAFT): POST /api/stores/:storeId/schedules/auto-generate
+storeScheduleRouter.post('/auto-generate', autoGenerateSchedule);
+
+// 4. Xuất bản (PUBLISHED) & Gửi Email kèm lương: POST /api/stores/:storeId/schedules/publish
 storeScheduleRouter.post('/publish', publishSchedule);
 
 // Router riêng cho nhân viên xem lịch cá nhân: /api/schedules/my-schedule

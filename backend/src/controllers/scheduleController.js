@@ -562,3 +562,301 @@ export const getMySchedule = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Tự động xếp ca làm việc thông minh và tối ưu cho nhân viên (Lưu bản nháp DRAFT)
+ * @route   POST /api/stores/:storeId/schedules/auto-generate
+ * @access  Private (Chủ quán hoặc Quản lý)
+ */
+export const autoGenerateSchedule = async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const {
+      week,
+      year,
+      startDate,
+      endDate,
+      days,
+      staffPerShift = 1,
+      maxShiftsPerDay = 1,
+      preserveExisting = false,
+      existingAssignments = [],
+    } = req.body;
+    const userId = req.user.id;
+
+    if (!week || !year || !startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ thông tin: week, year, startDate, endDate.',
+      });
+    }
+
+    const access = await verifyStoreAccess(storeId, userId);
+    if (access.error) {
+      return res.status(404).json({ success: false, message: access.error });
+    }
+
+    if (!access.isManager) {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ Chủ cửa hàng hoặc Quản lý mới có quyền sử dụng tính năng tự động xếp lịch.',
+      });
+    }
+
+    // 1. Lấy danh sách ca làm việc của quán
+    const shifts = await Shift.find({ storeId, isActive: { $ne: false } }).sort({ startTime: 1 });
+    if (!shifts || shifts.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cửa hàng chưa có ca làm việc nào. Vui lòng tạo ca làm việc trước khi tự động chia ca.',
+      });
+    }
+
+    // 2. Lấy danh sách nhân viên đang hoạt động (ACTIVE)
+    const activeMembers = await StoreMember.find({ storeId, status: 'ACTIVE' }).populate(
+      'userId',
+      'fullName email systemRole'
+    );
+    const validMembers = activeMembers.filter((m) => m.userId && m.userId._id);
+
+    if (validMembers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cửa hàng chưa có nhân viên nào đang hoạt động. Vui lòng thêm nhân viên trước khi tự động chia ca.',
+      });
+    }
+
+    // 3. Chuẩn bị danh sách 7 ngày trong tuần
+    let weekDays = days;
+    if (!Array.isArray(weekDays) || weekDays.length === 0) {
+      const dayNames = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
+      const baseDate = new Date(startDate);
+      weekDays = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(baseDate);
+        d.setDate(baseDate.getDate() + i);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dayNum = String(d.getDate()).padStart(2, '0');
+        weekDays.push({
+          date: `${y}-${m}-${dayNum}`,
+          dayOfWeek: dayNames[i],
+        });
+      }
+    }
+
+    // 4. Khởi tạo theo dõi phân công (workload tracking)
+    const memberStats = {};
+    validMembers.forEach((m) => {
+      const uId = m.userId._id.toString();
+      memberStats[uId] = {
+        member: m,
+        userId: m.userId._id,
+        hourlyWage: m.hourlyWage || 20000,
+        shiftCount: 0,
+        totalHours: 0,
+        shiftsByDate: {}, // dateStr -> [shiftObj]
+      };
+    });
+
+    const shiftMap = {};
+    shifts.forEach((s) => {
+      shiftMap[s._id.toString()] = s;
+    });
+
+    let workingAssignments = [];
+
+    // Nếu người quản lý chọn giữ lại các ca đã xếp thủ công
+    if (preserveExisting && Array.isArray(existingAssignments) && existingAssignments.length > 0) {
+      for (const item of existingAssignments) {
+        const uId = String(item.userId?._id || item.userId || '');
+        const sId = String(item.shiftId?._id || item.shiftId || '');
+        const shift = shiftMap[sId];
+        const stat = memberStats[uId];
+        if (shift && stat && item.date) {
+          if (!stat.shiftsByDate[item.date]) stat.shiftsByDate[item.date] = [];
+          stat.shiftsByDate[item.date].push(shift);
+          stat.shiftCount += 1;
+          stat.totalHours += shift.durationHours || 4;
+          workingAssignments.push({
+            date: item.date,
+            dayOfWeek: item.dayOfWeek,
+            shiftId: shift._id,
+            userId: stat.userId,
+            hourlyWage: stat.hourlyWage,
+          });
+        }
+      }
+    }
+
+    const targetStaffPerShift = Math.max(1, parseInt(staffPerShift, 10) || 1);
+    const maxPerDay = Math.max(1, parseInt(maxShiftsPerDay, 10) || 1);
+
+    // 5. Thuật toán tự động xếp ca thông minh & cân bằng tải (Fair & Optimal Scheduling)
+    for (const day of weekDays) {
+      for (const shift of shifts) {
+        const sId = shift._id.toString();
+
+        // Đếm xem ca này trong ngày đã có bao nhiêu người
+        const currentAssigned = workingAssignments.filter(
+          (a) => a.date === day.date && a.shiftId.toString() === sId
+        );
+        let needed = targetStaffPerShift - currentAssigned.length;
+
+        while (needed > 0) {
+          // Lọc ra các ứng viên hợp lệ:
+          // 1. Chưa được phân vào ca này trong ngày (không trùng lặp duplicate)
+          // 2. Không bị vượt quá maxShiftsPerDay trong ngày
+          // 3. Không bị trùng / giao thoa khung giờ với bất kỳ ca nào đã phân trong ngày (checkShiftOverlap)
+          const eligibleCandidates = validMembers.filter((m) => {
+            const uId = m.userId._id.toString();
+            const stat = memberStats[uId];
+            const dateShifts = stat.shiftsByDate[day.date] || [];
+
+            // 1. Không trùng cùng 1 ca
+            const alreadyInThisShift = dateShifts.some((s) => s._id.toString() === sId);
+            if (alreadyInThisShift) return false;
+
+            // 2. Kiểm tra giới hạn ca/ngày
+            if (dateShifts.length >= maxPerDay) return false;
+
+            // 3. Kiểm tra trùng/giao thoa giờ (no overlap)
+            const hasTimeConflict = dateShifts.some((s) => checkShiftOverlap(shift, s));
+            if (hasTimeConflict) return false;
+
+            return true;
+          });
+
+          // Nếu không còn ứng viên dưới maxPerDay, nhưng quán ít người và cần xếp thêm ca trong ngày
+          // (nhưng TUYỆT ĐỐI KHÔNG vi phạm trùng giờ hoặc trùng ca)
+          let candidatePool = eligibleCandidates;
+          if (candidatePool.length === 0 && maxPerDay < shifts.length) {
+            candidatePool = validMembers.filter((m) => {
+              const uId = m.userId._id.toString();
+              const stat = memberStats[uId];
+              const dateShifts = stat.shiftsByDate[day.date] || [];
+
+              const alreadyInThisShift = dateShifts.some((s) => s._id.toString() === sId);
+              if (alreadyInThisShift) return false;
+
+              // Vẫn tuyệt đối cấm trùng giờ
+              const hasTimeConflict = dateShifts.some((s) => checkShiftOverlap(shift, s));
+              if (hasTimeConflict) return false;
+
+              return true;
+            });
+          }
+
+          if (candidatePool.length === 0) {
+            // Không có ứng viên nào có thể nhận ca này mà không bị trùng giờ -> dừng cho ca này
+            break;
+          }
+
+          // Tiêu chuẩn tối ưu hóa công bằng:
+          // - Ưu tiên người có tổng số ca tuần ít nhất
+          // - Ưu tiên người có tổng số giờ làm tuần ít nhất
+          // - Ưu tiên người chưa làm ca nào trong ngày hôm nay
+          // - Tie-breaker ngẫu nhiên nhỏ
+          candidatePool.sort((a, b) => {
+            const statA = memberStats[a.userId._id.toString()];
+            const statB = memberStats[b.userId._id.toString()];
+
+            if (statA.shiftCount !== statB.shiftCount) {
+              return statA.shiftCount - statB.shiftCount;
+            }
+
+            if (statA.totalHours !== statB.totalHours) {
+              return statA.totalHours - statB.totalHours;
+            }
+
+            const todayA = (statA.shiftsByDate[day.date] || []).length;
+            const todayB = (statB.shiftsByDate[day.date] || []).length;
+            if (todayA !== todayB) {
+              return todayA - todayB;
+            }
+
+            return Math.random() - 0.5;
+          });
+
+          const chosenMember = candidatePool[0];
+          const chosenUId = chosenMember.userId._id.toString();
+          const chosenStat = memberStats[chosenUId];
+
+          // Phân công ca
+          workingAssignments.push({
+            date: day.date,
+            dayOfWeek: day.dayOfWeek,
+            shiftId: shift._id,
+            userId: chosenMember.userId._id,
+            hourlyWage: chosenStat.hourlyWage,
+          });
+
+          // Cập nhật thống kê nhân viên
+          if (!chosenStat.shiftsByDate[day.date]) {
+            chosenStat.shiftsByDate[day.date] = [];
+          }
+          chosenStat.shiftsByDate[day.date].push(shift);
+          chosenStat.shiftCount += 1;
+          chosenStat.totalHours += shift.durationHours || 4;
+
+          needed--;
+        }
+      }
+    }
+
+    // 6. Tính toán lại lương chi tiết và xác thực lần cuối qua processAssignmentsAndSalary
+    const { processedAssignments, salarySummary } = await processAssignmentsAndSalary(
+      storeId,
+      workingAssignments
+    );
+
+    // 7. Lưu hoặc cập nhật lịch làm việc với trạng thái DRAFT (BẢN NHÁP)
+    let schedule = await Schedule.findOne({
+      storeId,
+      week: Number(week),
+      year: Number(year),
+    });
+
+    if (schedule) {
+      schedule.startDate = new Date(startDate);
+      schedule.endDate = new Date(endDate);
+      schedule.assignments = processedAssignments;
+      schedule.status = 'DRAFT'; // Luôn lưu dạng bản nháp để quản lý xem xét và xác nhận sau
+      schedule.createdBy = userId;
+    } else {
+      schedule = new Schedule({
+        storeId,
+        week: Number(week),
+        year: Number(year),
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        status: 'DRAFT', // Luôn lưu dạng bản nháp
+        createdBy: userId,
+        assignments: processedAssignments,
+      });
+    }
+
+    await schedule.save();
+
+    await schedule.populate([
+      { path: 'assignments.shiftId', select: 'name startTime endTime durationHours color' },
+      { path: 'assignments.userId', select: 'fullName email systemRole' },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: `Đã tự động xếp lịch tuần tối ưu thành công (${processedAssignments.length} lượt phân ca)! Lịch đang ở trạng thái "Bản nháp", bạn có thể xem lại, tinh chỉnh và xác nhận sau.`,
+      status: 'DRAFT',
+      totalAssignedShifts: processedAssignments.length,
+      schedule,
+      salarySummary,
+    });
+  } catch (error) {
+    console.error('Lỗi tự động xếp lịch:', error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || 'Lỗi máy chủ khi tự động xếp lịch',
+    });
+  }
+};
+

@@ -62,6 +62,15 @@ export const ScheduleManagementPage = () => {
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', message: '' }
 
+  // Auto-schedule Modal State
+  const [autoScheduleModalOpen, setAutoScheduleModalOpen] = useState(false);
+  const [autoConfig, setAutoConfig] = useState({
+    staffPerShift: 1,
+    maxShiftsPerDay: 1,
+    preserveExisting: false
+  });
+  const [autoGenerating, setAutoGenerating] = useState(false);
+
   // Create initial store modal state if owner doesn't have a store yet
   const [createStoreModal, setCreateStoreModal] = useState(false);
   const [newStoreForm, setNewStoreForm] = useState({ name: '', address: '' });
@@ -431,6 +440,91 @@ export const ScheduleManagementPage = () => {
     }
   };
 
+  // Auto Generate Schedule (Draft)
+  const handleAutoSchedule = async () => {
+    if (!store?._id) return;
+    if (shifts.length === 0) {
+      setFeedback({
+        type: 'error',
+        message: 'Cửa hàng chưa có ca làm việc nào. Vui lòng tạo ca làm trước khi tự động chia ca.'
+      });
+      return;
+    }
+    if (members.length === 0) {
+      setFeedback({
+        type: 'error',
+        message: 'Cửa hàng chưa có nhân viên nào. Vui lòng mời nhân viên vào quán trước khi tự động chia ca.'
+      });
+      return;
+    }
+
+    try {
+      setAutoGenerating(true);
+      setFeedback(null);
+
+      const payload = {
+        week,
+        year,
+        startDate: currentMonday,
+        endDate: daysOfWeek[6]?.dateStr || addWeeks(currentMonday, 1),
+        days: daysOfWeek.map((d) => ({
+          date: d.dateStr,
+          dayOfWeek: d.dayName
+        })),
+        staffPerShift: Number(autoConfig.staffPerShift) || 1,
+        maxShiftsPerDay: Number(autoConfig.maxShiftsPerDay) || 1,
+        preserveExisting: Boolean(autoConfig.preserveExisting),
+        existingAssignments: autoConfig.preserveExisting
+          ? assignments.map((a) => {
+              const day = daysOfWeek.find((d) => d.dateStr === a.date);
+              return {
+                date: a.date,
+                dayOfWeek: day?.dayName || 'Thứ Hai',
+                shiftId: getShiftId(a.shiftId),
+                userId: getUserId(a.userId)
+              };
+            })
+          : []
+      };
+
+      const res = await scheduleApi.autoGenerate(store._id, payload);
+      if (res.success && res.schedule) {
+        setScheduleStatus('DRAFT');
+        const rawAssignments = res.schedule.assignments || [];
+        const formatted = rawAssignments.map((a) => {
+          const sId = getShiftId(a.shiftId);
+          const uId = getUserId(a.userId);
+          const uName =
+            (typeof a.userId === 'object' && a.userId !== null
+              ? (a.userId.fullName || a.userId.name)
+              : '') || 'Nhân viên';
+          return {
+            date: a.date,
+            dayOfWeek: a.dayOfWeek,
+            shiftId: sId,
+            userId: uId,
+            userObj: { _id: uId, name: uName },
+            shiftObj: typeof a.shiftId === 'object' && a.shiftId !== null ? a.shiftId : null
+          };
+        });
+        setAssignments(formatted);
+        setAutoScheduleModalOpen(false);
+        setFeedback({
+          type: 'success',
+          message: res.message || 'Đã tự động xếp lịch nháp thành công! Bạn có thể xem lại và chỉnh sửa trước khi xuất bản.'
+        });
+      }
+    } catch (err) {
+      console.error('Error auto-generating schedule:', err);
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Không thể tự động xếp lịch'
+      });
+    } finally {
+      setAutoGenerating(false);
+    }
+  };
+
   // Publish Schedule & Send Emails
   const handleConfirmPublish = async () => {
     if (!store?._id) return;
@@ -643,7 +737,18 @@ export const ScheduleManagementPage = () => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || autoGenerating}
+            onClick={() => setAutoScheduleModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-300 bg-linear-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 text-sm font-bold transition shadow-xs disabled:opacity-50"
+            title="Tự động phân bổ ca làm tối ưu cho nhân viên và lưu bản nháp"
+          >
+            <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
+            <span>Tự động xếp lịch</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={saving || autoGenerating}
             onClick={handleSaveDraft}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-bold bg-white hover:bg-slate-50 transition shadow-xs disabled:opacity-50"
           >
@@ -653,7 +758,7 @@ export const ScheduleManagementPage = () => {
 
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || autoGenerating}
             onClick={() => {
               const val = validateAssignmentsNoOverlap();
               if (val.hasError) {
@@ -694,6 +799,21 @@ export const ScheduleManagementPage = () => {
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* Draft Schedule Notice Banner */}
+      {scheduleStatus === 'DRAFT' && assignments.length > 0 && (
+        <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200/90 text-amber-900 flex items-center justify-between text-xs font-medium animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Lịch hiện tại đang ở trạng thái <strong>Bản nháp</strong>. Bạn có thể bấm vào từng ca để xem, thêm/bớt nhân viên, sau đó bấm <strong>"Xác nhận & gửi email"</strong> khi đã sẵn sàng công bố cho nhân viên.
+            </span>
+          </div>
+          <span className="px-2.5 py-1 bg-amber-200/70 text-amber-800 text-[11px] font-bold rounded-lg shrink-0 hidden sm:inline-block">
+            Bản nháp chờ quản lý duyệt
+          </span>
         </div>
       )}
 
@@ -978,21 +1098,21 @@ export const ScheduleManagementPage = () => {
 
       {/* MODAL: Manage Shift Roster / Multi-Employee Assignment */}
       {assignModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden my-auto">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-[#FFF0E5] border-b border-orange-100 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl bg-orange-100 text-[#EA701B] flex items-center justify-center shrink-0">
                   <Clock className="w-4 h-4" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    Phân công ca làm việc: {shifts.find((s) => s._id === assignModal.shiftId)?.name}
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-900 text-sm truncate">
+                    Phân công ca làm việc: {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.name || 'Ca làm việc'}
                   </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    {shifts.find((s) => s._id === assignModal.shiftId)?.startTime} —{' '}
-                    {shifts.find((s) => s._id === assignModal.shiftId)?.endTime} •{' '}
+                  <p className="text-[11px] text-slate-500 font-medium truncate">
+                    {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.startTime} —{' '}
+                    {shifts.find((s) => getShiftId(s._id) === getShiftId(assignModal.shiftId))?.endTime} •{' '}
                     {daysOfWeek.find((d) => d.dateStr === assignModal.date)?.fullDisplay || assignModal.date}
                   </p>
                 </div>
@@ -1000,7 +1120,7 @@ export const ScheduleManagementPage = () => {
               <button
                 type="button"
                 onClick={() => setAssignModal({ isOpen: false, date: '', shiftId: '', selectedUserId: '' })}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0 ml-2"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1010,8 +1130,9 @@ export const ScheduleManagementPage = () => {
               {/* SECTION 1: Current Assigned Employees */}
               <div>
                 {(() => {
+                  const currentShiftId = getShiftId(assignModal.shiftId);
                   const currentCellAssignments = assignments.filter(
-                    (a) => a.date === assignModal.date && a.shiftId === assignModal.shiftId
+                    (a) => a.date === assignModal.date && getShiftId(a.shiftId) === currentShiftId
                   );
 
                   return (
@@ -1113,13 +1234,13 @@ export const ScheduleManagementPage = () => {
 
                   return (
                     <>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <select
                           value={assignModal.selectedUserId}
                           onChange={(e) =>
                             setAssignModal((prev) => ({ ...prev, selectedUserId: e.target.value }))
                           }
-                          className="flex-1 p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#EA701B]"
+                          className="flex-1 min-w-0 w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#EA701B] truncate"
                         >
                           <option value="">-- Chọn nhân viên để thêm --</option>
                           {members.map((m) => {
@@ -1151,10 +1272,10 @@ export const ScheduleManagementPage = () => {
                           type="button"
                           disabled={!assignModal.selectedUserId || !!selectedConflict || isSelectedAlready}
                           onClick={handleAddEmployeeToShift}
-                          className="px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0 transition"
+                          className="px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap transition"
                         >
                           <Plus className="w-4 h-4" />
-                          Thêm vào ca
+                          <span>Thêm vào ca</span>
                         </button>
                       </div>
 
@@ -1185,6 +1306,142 @@ export const ScheduleManagementPage = () => {
                   Xong & Đóng
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Auto-Generate Schedule */}
+      {autoScheduleModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-linear-to-r from-amber-50/80 via-orange-50/50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shadow-xs">
+                  <Sparkles className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Tự động xếp lịch thông minh
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Phân chia ca làm tối ưu & lưu thành bản nháp
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAutoScheduleModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* How it works note */}
+              <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 text-xs text-amber-900 space-y-1.5">
+                <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                  <Info className="w-4 h-4 shrink-0" />
+                  <span>Quy tắc tối ưu tự động:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-slate-700 pl-1">
+                  <li>Cân bằng số ca và tổng số giờ làm việc đều giữa các nhân viên.</li>
+                  <li>Tuyệt đối không trùng ca và không giao thoa khung giờ trong cùng ngày.</li>
+                  <li>Lưu dưới dạng <b>Bản nháp (DRAFT)</b> — quản lý có thể xem lại, tinh chỉnh từng ca và xác nhận sau.</li>
+                </ul>
+              </div>
+
+              {/* Store context stats */}
+              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200/60 text-xs">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-orange-500" />
+                  <span>Tổng ca/ngày: <strong className="text-slate-800">{shifts.length} ca</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-blue-500" />
+                  <span>Nhân viên sẵn sàng: <strong className="text-slate-800">{members.length} người</strong></span>
+                </div>
+              </div>
+
+              {/* Form Options */}
+              <div className="space-y-3 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Số nhân viên cần cho mỗi ca làm:
+                  </label>
+                  <select
+                    value={autoConfig.staffPerShift}
+                    onChange={(e) =>
+                      setAutoConfig((prev) => ({ ...prev, staffPerShift: Number(e.target.value) }))
+                    }
+                    className="w-full px-3.5 py-2.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#EA701B] outline-hidden transition"
+                  >
+                    <option value={1}>1 nhân viên / ca (Tiêu chuẩn)</option>
+                    <option value={2}>2 nhân viên / ca (Quán đông khách)</option>
+                    <option value={3}>3 nhân viên / ca</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tối đa số ca làm / ngày của 1 nhân viên:
+                  </label>
+                  <select
+                    value={autoConfig.maxShiftsPerDay}
+                    onChange={(e) =>
+                      setAutoConfig((prev) => ({ ...prev, maxShiftsPerDay: Number(e.target.value) }))
+                    }
+                    className="w-full px-3.5 py-2.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#EA701B] outline-hidden transition"
+                  >
+                    <option value={1}>Tối đa 1 ca / ngày (Khuyên dùng - Tránh quá tải)</option>
+                    <option value={2}>Tối đa 2 ca / ngày (Ca không trùng giờ)</option>
+                  </select>
+                </div>
+
+                <div className="pt-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoConfig.preserveExisting}
+                      onChange={(e) =>
+                        setAutoConfig((prev) => ({ ...prev, preserveExisting: e.target.checked }))
+                      }
+                      className="mt-0.5 rounded-sm border-slate-300 text-[#EA701B] focus:ring-[#EA701B]"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-slate-800">
+                        Giữ lại các ca đã xếp thủ công hiện tại
+                      </span>
+                      <p className="text-slate-500 text-[11px] mt-0.5">
+                        Hệ thống sẽ giữ nguyên những ai đã được xếp ca và chỉ tự động chia vào các vị trí còn trống.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAutoScheduleModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={autoGenerating || shifts.length === 0 || members.length === 0}
+                onClick={handleAutoSchedule}
+                className="px-5 py-2.5 text-xs font-bold text-white bg-linear-to-r from-amber-500 to-[#EA701B] hover:from-amber-600 hover:to-[#D55E0D] rounded-xl shadow-md shadow-orange-500/20 disabled:opacity-50 flex items-center gap-2 transition"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>{autoGenerating ? 'Đang tự động tính toán & xếp ca...' : 'Bắt đầu tự động xếp ca'}</span>
+              </button>
             </div>
           </div>
         </div>
