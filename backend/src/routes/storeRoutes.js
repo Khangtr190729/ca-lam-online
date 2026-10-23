@@ -8,11 +8,15 @@ import {
   inviteById,
 } from '../controllers/storeController.js';
 import { protect } from '../middlewares/authMiddleware.js';
+import memberRoutes from './memberRoutes.js';
 
 const router = express.Router();
 
 // Tất cả các routes Store đều yêu cầu đăng nhập
 router.use(protect);
+
+// Nhánh con quản lý thành viên và gán lương: /api/stores/:storeId/members
+router.use('/:storeId/members', memberRoutes);
 
 // 1. Tạo cửa hàng mới (ADMIN)
 router.post('/', createStore);
