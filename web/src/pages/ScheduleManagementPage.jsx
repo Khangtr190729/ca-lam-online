@@ -50,13 +50,12 @@ export const ScheduleManagementPage = () => {
   const [newStoreForm, setNewStoreForm] = useState({ name: '', address: '' });
   const [creatingStore, setCreatingStore] = useState(false);
 
-  // Modal State for Assigning / Editing a cell
+  // Modal State for Managing Shift Roster (supports multiple employees per shift)
   const [assignModal, setAssignModal] = useState({
     isOpen: false,
     date: '',
     shiftId: '',
-    userId: '',
-    assignmentIndex: -1
+    selectedUserId: ''
   });
 
   const daysOfWeek = useMemo(() => getDaysOfWeek(currentMonday), [currentMonday]);
@@ -205,7 +204,7 @@ export const ScheduleManagementPage = () => {
     [assignments, shifts]
   );
 
-  // Danh sách các cặp ca bị trùng lặp trong tuần
+  // Danh sách các ca bị trùng lặp thời gian của cùng một nhân viên trong tuần
   const scheduleConflicts = useMemo(() => {
     const conflicts = [];
     assignments.forEach((a1, idx1) => {
@@ -215,20 +214,39 @@ export const ScheduleManagementPage = () => {
 
       assignments.forEach((a2, idx2) => {
         if (idx1 >= idx2) return;
+        // Chỉ xét xung đột nếu là CÙNG 1 NHÂN VIÊN trong CÙNG 1 NGÀY
         if (a1.date !== a2.date || a1.userId !== a2.userId) return;
 
         const shift2 = shifts.find((s) => s._id === a2.shiftId) || a2.shiftObj;
         if (!shift2) return;
 
-        if (checkShiftOverlap(shift1, shift2)) {
-          const emp = members.find((m) => (m.user?._id || m.userId) === a1.userId);
-          const empName = emp?.user?.name || emp?.fullName || a1.userObj?.name || 'Nhân viên';
+        const emp = members.find((m) => (m.user?._id || m.userId) === a1.userId);
+        const empName = emp?.user?.name || emp?.fullName || a1.userObj?.name || 'Nhân viên';
+
+        // Trùng lặp do thêm 2 lần cùng 1 người vào 1 ca
+        if (a1.shiftId === a2.shiftId) {
           conflicts.push({
             date: a1.date,
             userId: a1.userId,
             employeeName: empName,
             shift1,
-            shift2
+            shift2,
+            isDuplicate: true,
+            message: `Nhân viên "${empName}" bị trùng lặp 2 lần trong ca "${shift1.name}" ngày ${a1.date}!`
+          });
+          return;
+        }
+
+        // Trùng lặp do 2 ca khác nhau có khung giờ giao thoa
+        if (checkShiftOverlap(shift1, shift2)) {
+          conflicts.push({
+            date: a1.date,
+            userId: a1.userId,
+            employeeName: empName,
+            shift1,
+            shift2,
+            isDuplicate: false,
+            message: `Nhân viên "${empName}" bị trùng giờ làm việc vào ngày ${a1.date} giữa ca "${shift1.name}" (${shift1.startTime} - ${shift1.endTime}) và ca "${shift2.name}" (${shift2.startTime} - ${shift2.endTime})!`
           });
         }
       });
@@ -242,81 +260,84 @@ export const ScheduleManagementPage = () => {
       const first = scheduleConflicts[0];
       return {
         hasError: true,
-        message: `Lỗi trùng ca: Nhân viên "${first.employeeName}" bị trùng giờ làm việc vào ngày ${first.date} giữa ca "${first.shift1.name}" (${first.shift1.startTime} - ${first.shift1.endTime}) và ca "${first.shift2.name}" (${first.shift2.startTime} - ${first.shift2.endTime}). Vui lòng điều chỉnh lại trước khi lưu!`
+        message: first.message || `Lỗi trùng ca: Nhân viên "${first.employeeName}" bị trùng giờ làm việc vào ngày ${first.date}!`
       };
     }
     return { hasError: false };
   }, [scheduleConflicts]);
 
-  // Open modal to assign or change an assignment
-  const handleCellClick = (dateStr, shiftId) => {
-    const existingIndex = assignments.findIndex(
-      (a) => a.date === dateStr && a.shiftId === shiftId
-    );
-    const existing = assignments[existingIndex];
-
+  // Mở modal quản lý danh sách nhân viên trong ca làm việc
+  const handleOpenAssignModal = (dateStr, shiftId) => {
     setAssignModal({
       isOpen: true,
       date: dateStr,
       shiftId: shiftId,
-      userId: existing ? existing.userId : '',
-      assignmentIndex: existingIndex
+      selectedUserId: ''
     });
   };
 
-  // Save assignment from modal
-  const handleSaveAssignment = () => {
-    if (!assignModal.userId) {
-      if (assignModal.assignmentIndex >= 0) {
-        setAssignments((prev) =>
-          prev.filter((_, idx) => idx !== assignModal.assignmentIndex)
-        );
-      }
-    } else {
-      // Check conflict before adding
-      const conflict = getConflictingShift(assignModal.userId, assignModal.date, assignModal.shiftId);
-      if (conflict) {
-        const selectedMember = members.find((m) => (m.user?._id || m.userId) === assignModal.userId);
-        const name = selectedMember?.user?.name || selectedMember?.fullName || 'Nhân viên';
-        setFeedback({
-          type: 'error',
-          message: `Không thể phân ca: Nhân viên "${name}" đã có ca "${conflict.name}" (${conflict.startTime} - ${conflict.endTime}) trong cùng khung giờ ngày ${assignModal.date}!`
-        });
-        return;
-      }
+  // Thêm một nhân viên vào ca làm việc
+  const handleAddEmployeeToShift = () => {
+    if (!assignModal.selectedUserId || !assignModal.date || !assignModal.shiftId) return;
+    const uid = assignModal.selectedUserId;
 
-      const selectedMember = members.find((m) => (m.user?._id || m.userId) === assignModal.userId);
-      const selectedShift = shifts.find((s) => s._id === assignModal.shiftId);
-      const day = daysOfWeek.find((d) => d.dateStr === assignModal.date);
-
-      const newAssignment = {
-        date: assignModal.date,
-        dayOfWeek: day?.dayName || 'Thứ Hai',
-        shiftId: assignModal.shiftId,
-        userId: assignModal.userId,
-        userObj: selectedMember?.user || { _id: assignModal.userId, name: 'Nhân viên' },
-        shiftObj: selectedShift
-      };
-
-      setAssignments((prev) => {
-        const filtered = prev.filter(
-          (a) => !(a.date === assignModal.date && a.shiftId === assignModal.shiftId)
-        );
-        return [...filtered, newAssignment];
+    // 1. Kiểm tra nhân viên này đã có trong ca này chưa
+    const alreadyIn = assignments.some(
+      (a) => a.date === assignModal.date && a.shiftId === assignModal.shiftId && a.userId === uid
+    );
+    if (alreadyIn) {
+      setFeedback({
+        type: 'error',
+        message: 'Nhân viên này đã được phân công vào ca này rồi!'
       });
+      return;
     }
 
-    setAssignModal({ isOpen: false, date: '', shiftId: '', userId: '', assignmentIndex: -1 });
+    // 2. Kiểm tra xung đột với ca khác của cùng nhân viên trong ngày
+    const conflict = getConflictingShift(uid, assignModal.date, assignModal.shiftId);
+    if (conflict) {
+      const selectedMember = members.find((m) => (m.user?._id || m.userId) === uid);
+      const name = selectedMember?.user?.name || selectedMember?.fullName || 'Nhân viên';
+      setFeedback({
+        type: 'error',
+        message: `Không thể phân ca: Nhân viên "${name}" đã có ca "${conflict.name}" (${conflict.startTime} - ${conflict.endTime}) trong cùng khung giờ ngày ${assignModal.date}!`
+      });
+      return;
+    }
+
+    const selectedMember = members.find((m) => (m.user?._id || m.userId) === uid);
+    const selectedShift = shifts.find((s) => s._id === assignModal.shiftId);
+    const day = daysOfWeek.find((d) => d.dateStr === assignModal.date);
+
+    const newAssignment = {
+      date: assignModal.date,
+      dayOfWeek: day?.dayName || 'Thứ Hai',
+      shiftId: assignModal.shiftId,
+      userId: uid,
+      userObj: selectedMember?.user || { _id: uid, name: 'Nhân viên' },
+      shiftObj: selectedShift
+    };
+
+    setAssignments((prev) => [...prev, newAssignment]);
+    setAssignModal((prev) => ({ ...prev, selectedUserId: '' }));
   };
 
-  // Remove assignment directly
-  const handleRemoveAssignment = () => {
-    if (assignModal.assignmentIndex >= 0) {
-      setAssignments((prev) =>
-        prev.filter((_, idx) => idx !== assignModal.assignmentIndex)
-      );
-    }
-    setAssignModal({ isOpen: false, date: '', shiftId: '', userId: '', assignmentIndex: -1 });
+  // Xóa một nhân viên cụ thể khỏi ca
+  const handleRemoveSingleAssignment = (dateStr, shiftId, userId) => {
+    setAssignments((prev) =>
+      prev.filter(
+        (a) => !(a.date === dateStr && a.shiftId === shiftId && a.userId === userId)
+      )
+    );
+  };
+
+  // Xóa toàn bộ nhân viên khỏi ca này
+  const handleClearShiftAssignments = (dateStr, shiftId) => {
+    setAssignments((prev) =>
+      prev.filter(
+        (a) => !(a.date === dateStr && a.shiftId === shiftId)
+      )
+    );
   };
 
   // Save Draft Schedule
@@ -725,84 +746,105 @@ export const ScheduleManagementPage = () => {
 
                     {/* 7 Daily cells for this shift */}
                     {daysOfWeek.map((day) => {
-                      const assignment = assignments.find(
+                      const cellAssignments = assignments.filter(
                         (a) => a.date === day.dateStr && a.shiftId === shift._id
                       );
-
-                      const assignedUser = assignment
-                        ? members.find((m) => (m.user?._id || m.userId) === assignment.userId)?.user ||
-                          assignment.userObj
-                        : null;
-
-                      const conflictShift = assignment ? getAssignmentConflict(assignment) : null;
+                      const hasAnyConflict = cellAssignments.some((a) => !!getAssignmentConflict(a));
 
                       return (
                         <td
                           key={day.dateStr}
-                          className="p-2 border-r border-slate-100 last:border-r-0 align-top h-24 hover:bg-orange-50/20 transition"
+                          className="p-1.5 border-r border-slate-100 last:border-r-0 align-top min-h-24 hover:bg-orange-50/20 transition"
                         >
-                          {assignment && assignedUser ? (
-                            <div
-                              onClick={() => handleCellClick(day.dateStr, shift._id)}
-                              className={`group relative h-full rounded-xl p-2.5 flex flex-col justify-between cursor-pointer transition shadow-xs ${
-                                conflictShift
-                                  ? 'bg-red-50 hover:bg-red-100/90 border-2 border-red-400 ring-1 ring-red-400/50'
-                                  : 'bg-[#FFF0E5] hover:bg-[#FFE5D1] border border-orange-200/80'
-                              }`}
-                            >
-                              <div>
-                                <div className="flex items-center justify-between mb-1">
-                                  {conflictShift ? (
-                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-red-600 flex items-center gap-1">
-                                      <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
-                                      Trùng ca!
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#EA701B]">
-                                      Đã phân ca
-                                    </span>
-                                  )}
-                                  <div
-                                    className={`w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                                      conflictShift ? 'bg-red-500' : 'bg-[#EA701B]'
-                                    }`}
-                                  >
-                                    {assignedUser.name ? assignedUser.name.charAt(0).toUpperCase() : 'U'}
-                                  </div>
-                                </div>
-                                <p
-                                  className={`text-xs font-bold line-clamp-1 ${
-                                    conflictShift ? 'text-red-900 font-extrabold' : 'text-slate-800'
-                                  }`}
-                                >
-                                  {assignedUser.name}
-                                </p>
-                                {conflictShift && (
-                                  <p className="text-[10px] text-red-600 font-semibold line-clamp-1 mt-0.5">
-                                    Trùng: {conflictShift.name} ({conflictShift.startTime}-{conflictShift.endTime})
-                                  </p>
-                                )}
-                              </div>
-                              <div
-                                className={`text-[10px] font-medium flex items-center gap-1 ${
-                                  conflictShift ? 'text-red-600 font-bold' : 'text-slate-500'
-                                }`}
-                              >
-                                <Clock
-                                  className={`w-3 h-3 ${conflictShift ? 'text-red-500' : 'text-[#EA701B]'}`}
-                                />
-                                <span>{shift.startTime} - {shift.endTime}</span>
-                              </div>
-                            </div>
-                          ) : (
+                          {cellAssignments.length === 0 ? (
                             <button
                               type="button"
-                              onClick={() => handleCellClick(day.dateStr, shift._id)}
-                              className="w-full h-full min-h-[70px] border border-dashed border-slate-200 hover:border-[#EA701B] hover:bg-[#FFF7F0] rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-[#EA701B] transition group"
+                              onClick={() => handleOpenAssignModal(day.dateStr, shift._id)}
+                              className="w-full h-full min-h-[84px] border border-dashed border-slate-200 hover:border-[#EA701B] hover:bg-[#FFF7F0] rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-[#EA701B] transition group p-2"
                             >
                               <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
                               <span className="text-[11px] font-medium mt-1">+ Phân ca</span>
                             </button>
+                          ) : (
+                            <div
+                              onClick={() => handleOpenAssignModal(day.dateStr, shift._id)}
+                              className={`group relative w-full h-full min-h-[84px] rounded-xl p-2 flex flex-col justify-between cursor-pointer transition shadow-xs ${
+                                hasAnyConflict
+                                  ? 'bg-red-50/90 hover:bg-red-100/90 border-2 border-red-400 ring-1 ring-red-400/50'
+                                  : 'bg-[#FFF8F2] hover:bg-[#FFF0E5] border border-orange-200/90'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between gap-1 mb-1.5">
+                                  <span
+                                    className={`text-[10px] font-bold uppercase tracking-wider ${
+                                      hasAnyConflict ? 'text-red-700' : 'text-[#EA701B]'
+                                    }`}
+                                  >
+                                    {cellAssignments.length} nhân viên
+                                  </span>
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold text-white ${
+                                      hasAnyConflict ? 'bg-red-500' : 'bg-[#EA701B]'
+                                    }`}
+                                  >
+                                    {cellAssignments.length}
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1">
+                                  {cellAssignments.map((a, idx) => {
+                                    const assignedUser =
+                                      members.find((m) => (m.user?._id || m.userId) === a.userId)?.user ||
+                                      a.userObj || { name: 'Nhân viên' };
+                                    const conflictShift = getAssignmentConflict(a);
+
+                                    return (
+                                      <div
+                                        key={`${a.userId}_${idx}`}
+                                        className={`flex items-center justify-between gap-1 px-1.5 py-1 rounded-lg border text-xs transition ${
+                                          conflictShift
+                                            ? 'bg-red-100/80 border-red-300 text-red-900 font-bold'
+                                            : 'bg-white border-orange-100 text-slate-800 hover:border-orange-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                          <div
+                                            className={`w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center shrink-0 ${
+                                              conflictShift ? 'bg-red-600' : 'bg-[#EA701B]'
+                                            }`}
+                                          >
+                                            {assignedUser.name ? assignedUser.name.charAt(0).toUpperCase() : 'U'}
+                                          </div>
+                                          <span className="truncate font-semibold text-[11px] leading-tight">
+                                            {assignedUser.name}
+                                          </span>
+                                        </div>
+
+                                        {conflictShift && (
+                                          <span
+                                            title={`Trùng giờ với ca "${conflictShift.name}" (${conflictShift.startTime}-${conflictShift.endTime})`}
+                                            className="shrink-0"
+                                          >
+                                            <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <div className="mt-2 pt-1 border-t border-orange-100/80 flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-[#EA701B]" />
+                                  <span>{shift.startTime} - {shift.endTime}</span>
+                                </span>
+                                <span className="text-[#EA701B] font-bold group-hover:underline">
+                                  + Thêm
+                                </span>
+                              </div>
+                            </div>
                           )}
                         </td>
                       );
@@ -882,122 +924,210 @@ export const ScheduleManagementPage = () => {
         )}
       </div>
 
-      {/* MODAL: Assign / Change Shift Cell */}
+      {/* MODAL: Manage Shift Roster / Multi-Employee Assignment */}
       {assignModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden">
+            {/* Modal Header */}
             <div className="px-6 py-4 bg-[#FFF0E5] border-b border-orange-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-[#EA701B]" />
-                <h3 className="font-bold text-slate-900 text-sm">Phân công ca làm việc</h3>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-orange-100 text-[#EA701B] flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Phân công ca làm việc: {shifts.find((s) => s._id === assignModal.shiftId)?.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {shifts.find((s) => s._id === assignModal.shiftId)?.startTime} —{' '}
+                    {shifts.find((s) => s._id === assignModal.shiftId)?.endTime} •{' '}
+                    {daysOfWeek.find((d) => d.dateStr === assignModal.date)?.fullDisplay || assignModal.date}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setAssignModal({ isOpen: false, date: '', shiftId: '', userId: '', assignmentIndex: -1 })}
+                onClick={() => setAssignModal({ isOpen: false, date: '', shiftId: '', selectedUserId: '' })}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5">
+              {/* SECTION 1: Current Assigned Employees */}
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Ngày làm việc</label>
-                <div className="p-2.5 bg-slate-100 rounded-xl text-xs font-semibold text-slate-700">
-                  {daysOfWeek.find((d) => d.dateStr === assignModal.date)?.fullDisplay || assignModal.date}
-                </div>
-              </div>
+                {(() => {
+                  const currentCellAssignments = assignments.filter(
+                    (a) => a.date === assignModal.date && a.shiftId === assignModal.shiftId
+                  );
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Khung giờ ca</label>
-                <div className="p-2.5 bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 flex justify-between">
-                  <span>{shifts.find((s) => s._id === assignModal.shiftId)?.name}</span>
-                  <span className="font-mono text-slate-500">
-                    {shifts.find((s) => s._id === assignModal.shiftId)?.startTime} —{' '}
-                    {shifts.find((s) => s._id === assignModal.shiftId)?.endTime}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">
-                  Chọn nhân viên làm ca này <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={assignModal.userId}
-                  onChange={(e) => setAssignModal((prev) => ({ ...prev, userId: e.target.value }))}
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#EA701B]"
-                >
-                  <option value="">-- Chưa chọn nhân viên (Trống) --</option>
-                  {members.map((m) => {
-                    const uid = m.user?._id || m.userId;
-                    const conflict = getConflictingShift(uid, assignModal.date, assignModal.shiftId);
-                    return (
-                      <option
-                        key={uid}
-                        value={uid}
-                        disabled={!!conflict}
-                        className={conflict ? 'text-red-500 bg-red-50' : ''}
-                      >
-                        {conflict
-                          ? `[Trùng ca: ${conflict.name} (${conflict.startTime} - ${conflict.endTime})] ${m.user?.name || m.fullName}`
-                          : `${m.user?.name || m.fullName} (${m.user?.email || m.email}) — ${formatVND(m.hourlyWage)}/h`}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              {/* Conflict warning in modal if selected user has conflict */}
-              {(() => {
-                const conflict = assignModal.userId
-                  ? getConflictingShift(assignModal.userId, assignModal.date, assignModal.shiftId)
-                  : null;
-                if (!conflict) return null;
-                const member = members.find((m) => (m.user?._id || m.userId) === assignModal.userId);
-                const name = member?.user?.name || member?.fullName || 'Nhân viên này';
-                return (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-700 animate-fade-in">
-                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  return (
                     <div>
-                      <p className="font-bold text-red-800">Cảnh báo: Trùng giờ làm việc!</p>
-                      <p className="mt-0.5 text-slate-600 leading-relaxed">
-                        <b>{name}</b> đã được phân công ca <b>"{conflict.name}" ({conflict.startTime} - {conflict.endTime})</b> vào ngày này. Một người không thể làm 2 ca trong cùng khung giờ!
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-[#EA701B]" />
+                          <span>Nhân viên trong ca này ({currentCellAssignments.length} người)</span>
+                        </label>
+                        {currentCellAssignments.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearShiftAssignments(assignModal.date, assignModal.shiftId)}
+                            className="text-[11px] text-red-600 hover:underline font-semibold"
+                          >
+                            Xóa tất cả
+                          </button>
+                        )}
+                      </div>
 
-              <div className="pt-2 flex items-center justify-between gap-3">
-                {assignModal.assignmentIndex >= 0 && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveAssignment}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Hủy phân ca này
-                  </button>
-                )}
-                <div className="flex-1" />
+                      {currentCellAssignments.length === 0 ? (
+                        <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 bg-slate-50/50">
+                          Chưa có nhân viên nào trong ca này. Hãy chọn nhân viên bên dưới để thêm vào ca.
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                          {currentCellAssignments.map((a) => {
+                            const member = members.find((m) => (m.user?._id || m.userId) === a.userId);
+                            const name = member?.user?.name || member?.fullName || a.userObj?.name || 'Nhân viên';
+                            const email = member?.user?.email || member?.email;
+                            const wage = member?.hourlyWage || 20000;
+                            const conflictShift = getAssignmentConflict(a);
+
+                            return (
+                              <div
+                                key={a.userId}
+                                className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
+                                  conflictShift ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200/80'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div
+                                    className={`w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 ${
+                                      conflictShift ? 'bg-red-500' : 'bg-[#EA701B]'
+                                    }`}
+                                  >
+                                    {name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-800 truncate">{name}</p>
+                                    <p className="text-[11px] text-slate-500 font-mono">
+                                      {formatVND(wage)}/h {email ? `• ${email}` : ''}
+                                    </p>
+                                    {conflictShift && (
+                                      <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-0.5">
+                                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                                        Trùng giờ với ca "{conflictShift.name}" ({conflictShift.startTime} - {conflictShift.endTime})
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSingleAssignment(a.date, a.shiftId, a.userId)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0"
+                                  title="Xóa khỏi ca"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* SECTION 2: Add New Employee to Shift */}
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Thêm nhân viên vào ca này
+                </label>
+                {(() => {
+                  const currentCellAssignments = assignments.filter(
+                    (a) => a.date === assignModal.date && a.shiftId === assignModal.shiftId
+                  );
+                  const selectedConflict = assignModal.selectedUserId
+                    ? getConflictingShift(assignModal.selectedUserId, assignModal.date, assignModal.shiftId)
+                    : null;
+                  const isSelectedAlready = currentCellAssignments.some(
+                    (a) => a.userId === assignModal.selectedUserId
+                  );
+
+                  return (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={assignModal.selectedUserId}
+                          onChange={(e) =>
+                            setAssignModal((prev) => ({ ...prev, selectedUserId: e.target.value }))
+                          }
+                          className="flex-1 p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#EA701B]"
+                        >
+                          <option value="">-- Chọn nhân viên để thêm --</option>
+                          {members.map((m) => {
+                            const uid = m.user?._id || m.userId;
+                            const alreadyIn = currentCellAssignments.some((a) => a.userId === uid);
+                            const conflict = getConflictingShift(uid, assignModal.date, assignModal.shiftId);
+
+                            let note = '';
+                            if (alreadyIn) {
+                              note = `[Đã có trong ca này] ${m.user?.name || m.fullName}`;
+                            } else if (conflict) {
+                              note = `[Trùng ca: ${conflict.name} (${conflict.startTime} - ${conflict.endTime})] ${m.user?.name || m.fullName}`;
+                            }
+
+                            return (
+                              <option
+                                key={uid}
+                                value={uid}
+                                disabled={alreadyIn || !!conflict}
+                                className={alreadyIn || conflict ? 'text-slate-400 bg-slate-50' : ''}
+                              >
+                                {note || `${m.user?.name || m.fullName} (${m.user?.email || m.email}) — ${formatVND(m.hourlyWage)}/h`}
+                              </option>
+                            );
+                          })}
+                        </select>
+
+                        <button
+                          type="button"
+                          disabled={!assignModal.selectedUserId || !!selectedConflict || isSelectedAlready}
+                          onClick={handleAddEmployeeToShift}
+                          className="px-4 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0 transition"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Thêm vào ca
+                        </button>
+                      </div>
+
+                      {/* Conflict alert for selected candidate */}
+                      {selectedConflict && (
+                        <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-xs text-red-700 animate-fade-in mt-1">
+                          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold text-red-800">Cảnh báo: Trùng giờ làm việc!</p>
+                            <p className="mt-0.5 text-slate-600">
+                              Nhân viên này đã được phân ca <b>"{selectedConflict.name}" ({selectedConflict.startTime} - {selectedConflict.endTime})</b> vào ngày này. Không thể phân 2 ca cùng khung giờ!
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setAssignModal({ isOpen: false, date: '', shiftId: '', userId: '', assignmentIndex: -1 })}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                  onClick={() => setAssignModal({ isOpen: false, date: '', shiftId: '', selectedUserId: '' })}
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs"
                 >
-                  Đóng
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    !assignModal.userId ||
-                    !!getConflictingShift(assignModal.userId, assignModal.date, assignModal.shiftId)
-                  }
-                  onClick={handleSaveAssignment}
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#EA701B] hover:bg-[#D55E0D] rounded-xl shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Lưu phân ca
+                  Xong & Đóng
                 </button>
               </div>
             </div>
