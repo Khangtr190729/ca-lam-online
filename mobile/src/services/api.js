@@ -1,14 +1,33 @@
 import axios from 'axios';
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import tokenStorage from '../storage/tokenStorage';
 
-// Default backend API URL depending on platform
-const DEFAULT_API_URL = Platform.select({
-  android: 'http://10.0.2.2:5000/api',
-  default: 'http://localhost:5000/api',
-});
+// Automatic detection of dev host IP for Android/iOS emulators, LDPlayer, and physical devices
+export const getDevHostIp = () => {
+  try {
+    const scriptURL = NativeModules?.SourceCode?.scriptURL;
+    if (scriptURL) {
+      const match = scriptURL.match(/https?:\/\/([^:/]+)/);
+      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+        return match[1];
+      }
+    }
+  } catch (e) {
+    // fallback
+  }
+  // Default to user's local network IP on Wi-Fi
+  return '192.168.1.135';
+};
 
-let currentBaseUrl = DEFAULT_API_URL;
+export const getDefaultApiUrl = () => {
+  if (Platform.OS === 'web') {
+    return 'http://localhost:5000/api';
+  }
+  const host = getDevHostIp();
+  return `http://${host}:5000/api`;
+};
+
+let currentBaseUrl = getDefaultApiUrl();
 
 const api = axios.create({
   baseURL: currentBaseUrl,
@@ -28,12 +47,14 @@ export const setApiBaseUrl = (newUrl) => {
 
 export const getApiBaseUrl = () => currentBaseUrl;
 
-// Request interceptor: attach token & read custom URL
+// Request interceptor: attach token & ensure dynamic dev host URL is used
 api.interceptors.request.use(
   async (config) => {
     const customUrl = await tokenStorage.getCustomApiUrl();
-    if (customUrl && config.baseURL !== customUrl) {
+    if (customUrl) {
       config.baseURL = customUrl;
+    } else {
+      config.baseURL = getDefaultApiUrl();
     }
     const token = await tokenStorage.getToken();
     if (token) {
@@ -48,6 +69,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      return Promise.reject(new Error('Hết thời gian chờ phản hồi từ máy chủ (Timeout).'));
+    }
+    if (error.message === 'Network Error' || !error.response) {
+      const host = getDevHostIp();
+      return Promise.reject(
+        new Error(`Không thể kết nối máy chủ backend tại ${host}:5000. Hãy kiểm tra server đã bật chưa.`)
+      );
+    }
     const message =
       error.response?.data?.message ||
       error.message ||
