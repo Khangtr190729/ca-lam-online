@@ -20,8 +20,8 @@ Hệ thống quản lý chặt chẽ 3 vai trò người dùng trong cửa hàng
 | Vai trò | Định danh kỹ thuật | Mô tả & Thẩm quyền chính |
 |---|---|---|
 | **Chủ cửa hàng** | `OWNER` / `ADMIN` | • Tạo cửa hàng, quản lý thông tin cửa hàng, tạo mã mời 6 số (hiệu lực 60 phút).<br>• Mời nhân viên qua email hoặc mã mời, phân loại Part-time / Full-time.<br>• Thiết lập mức lương theo giờ linh hoạt cho từng nhân viên.<br>• Bổ nhiệm/hạ quyền Quản lý, xóa nhân viên khỏi cửa hàng.<br>• Định nghĩa khung giờ ca làm việc, kiểm tra trùng lặp khung giờ.<br>• Xếp lịch tuần (thủ công & tự động), xuất bản lịch và xem tổng chi phí lương tuần/tháng. |
-| **Quản lý cửa hàng** | `MANAGER` | • Được Chủ bổ nhiệm từ nhân viên (không đăng ký tự do).<br>• Điều phối, phân công ca làm việc cho nhân sự trong tuần.<br>• Sử dụng thuật toán tự động xếp lịch và kiểm soát xung đột.<br>• **Đánh giá ca làm việc:** Đánh dấu ca không hoàn thành, nhập lý do vi phạm, trừ tiền ca làm và gửi email kỷ luật.<br>• **Có thể được phân ca và theo dõi lịch làm việc của chính mình** qua màn hình *Lịch làm của tôi*. |
-| **Người đi làm / Nhân viên** | `EMPLOYEE` | • Đăng ký tài khoản với vai trò người đi làm, tham gia quán qua mã mời 6 số hoặc link mời email.<br>• Theo dõi lịch làm việc cá nhân tuần/tháng (giao diện web responsive & mobile).<br>• Nhận email thông báo tự động khi lịch làm việc được xuất bản (kèm danh sách ca và lương ước tính).<br>• Nhận email thông báo chi tiết nếu bị đánh giá không hoàn thành ca. |
+| **Quản lý cửa hàng** | `MANAGER` | • Được Chủ bổ nhiệm từ nhân viên (không đăng ký tự do).<br>• Điều phối, phân công ca làm việc cho nhân sự trong tuần.<br>• Sử dụng thuật toán tự động xếp lịch và kiểm soát xung đột.<br>• **Đánh giá ca làm việc đa cấp độ:** Đánh dấu ca hoàn thành, chưa hoàn thành tốt (đi trễ, về sớm, trừ 1 phần lương), hoặc không hoàn thành (vắng/bỏ ca, trừ cả ca), nhập lý do vi phạm và gửi email minh bạch.<br>• **Có thể được phân ca và theo dõi lịch làm việc của chính mình** qua màn hình *Lịch làm của tôi*. |
+| **Người đi làm / Nhân viên** | `EMPLOYEE` | • Đăng ký tài khoản với vai trò người đi làm, tham gia quán qua mã mời 6 số hoặc link mời email.<br>• Theo dõi lịch làm việc cá nhân tuần/tháng (giao diện web responsive & mobile).<br>• Nhận email thông báo tự động khi lịch làm việc được xuất bản (kèm danh sách ca và lương ước tính).<br>• Nhận email thông báo chi tiết khi ca làm việc bị đánh giá chưa tốt hoặc không hoàn thành kèm số tiền khấu trừ cụ thể. |
 
 ---
 
@@ -45,24 +45,28 @@ Hệ thống quản lý chặt chẽ 3 vai trò người dùng trong cửa hàng
   - Tự động bỏ qua các ca/ngày đã diễn ra trong quá khứ.
   - Lưu kết quả dưới dạng **Bản nháp (DRAFT)** để quản lý xem lại và tinh chỉnh trước khi duyệt.
 
-### 3.3. Đánh giá Ca làm việc (Shift Evaluation) & Trừ Lương Tự Động
+### 3.3. Đánh giá Ca làm việc Đa Cấp Độ (Shift Evaluation) & Khấu Trừ Lương Tự Động
 - Cho phép Quản lý / Chủ cửa hàng đánh giá các ca làm việc đang diễn ra hoặc đã kết thúc trong quá khứ (không áp dụng cho ca tương lai).
-- Hỗ trợ đánh dấu ca làm là **Không hoàn thành** (ví dụ: nhân viên vắng mặt không phép, bỏ ca).
-- Nhập lý do vi phạm cụ thể do người quản lý ghi chú.
-- **Tự động trừ lương:** Tiền lương của ca làm không hoàn thành sẽ bị trừ trực tiếp ra khỏi tổng lương của nhân viên đó trong tuần và tháng.
-- **Tự động gửi email kỷ luật:** Hệ thống gửi ngay email thông báo về hộp thư nhân viên, ghi rõ ca vi phạm, số tiền bị khấu trừ, lý do và danh tính người đánh giá (Chủ/Quản lý).
+- **3 Cấp độ đánh giá chuyên nghiệp:**
+  1. **Hoàn thành (`COMPLETED`):** Tính đủ 100% giờ làm và lương ca.
+  2. **Chưa hoàn thành tốt (`PARTIAL`):** Dành cho trường hợp nhân viên đi trễ, về sớm, xin nghỉ 1 phần ca hoặc vi phạm nội quy cửa hàng.
+     - **Trừ theo số giờ/phút:** Nhập số giờ khấu trừ (kèm chip chọn nhanh: *Trễ 30 phút*, *Trễ 1 tiếng*, *Về sớm 1 tiếng*...). Hệ thống tự động tính tiền trừ = `Giờ trừ × Mức lương` và tính tiền lương thực nhận của ca.
+     - **Trừ theo số tiền cố định (VNĐ):** Nhập trực tiếp số tiền khấu trừ (kèm chip gợi ý *-20.000đ*, *-50.000đ*).
+  3. **Không hoàn thành (`MISSED`):** Dành cho trường hợp nhân viên vắng mặt không phép, bỏ ca (trừ 100% lương ca làm).
+- **Hỗ trợ khôi phục ca:** Có thể khôi phục lại trạng thái Hoàn thành và hoàn lương bất cứ lúc nào nếu có sự nhầm lẫn.
+- **Tự động gửi email minh bạch:** Hệ thống gửi ngay email thông báo về hộp thư nhân viên, thể hiện rõ mức trừ, số giờ trừ, lương ca còn nhận, lý do và danh tính người đánh giá (Chủ/Quản lý).
 
 ### 3.4. Bảng Lương & Thống kê Tài chính Cửa hàng
-- **Bảng tổng kết lương tuần:** Tự động tính tổng giờ làm việc thực tế, tổng ca hoàn thành và tiền lương chi tiết của từng nhân viên theo công thức `Mức lương/giờ × Thời lượng ca`.
+- **Bảng tổng kết lương tuần:** Tự động tính tổng giờ làm việc thực tế, tổng ca hoàn thành, ca vi phạm/trừ 1 phần và tiền lương chi tiết của từng nhân viên theo công thức `Mức lương/giờ × Thời lượng ca thực tế`.
 - **Thống kê tháng & Luỹ kế:**
   - Tổng số ca đã phân trong tháng.
-  - Dự toán tổng chi phí lương của cả cửa hàng trong tháng này.
+  - Dự toán tổng chi phí lương của cả cửa hàng trong tháng này (đã phản ánh các khoản khấu trừ).
   - Nút chuyển đổi đối soát và so sánh trực quan với dữ liệu của tháng trước.
 
 ### 3.5. Dịch vụ Email Tự động (Nodemailer HTML Templates)
 - Template email mời nhân viên tham gia cửa hàng kèm hướng dẫn kích hoạt.
 - Template email xuất bản lịch làm việc: Liệt kê chi tiết từng ca trong tuần của nhân viên và bảng tính lương dự toán.
-- Template email thông báo đánh giá không hoàn thành ca và khấu trừ tiền lương minh bạch.
+- Template email thông báo đánh giá Chưa hoàn thành tốt (Trừ một phần lương) hoặc Không hoàn thành ca (Trừ toàn bộ lương) minh bạch.
 
 ### 3.6. Giao diện Đỉnh cao & Hiệu năng 60–120 FPS
 - Bảng màu cam thương hiệu (`#EA701B`) ấm áp, hiện đại, phối hợp cùng nền kem nhẹ và kính mờ (glassmorphism).
