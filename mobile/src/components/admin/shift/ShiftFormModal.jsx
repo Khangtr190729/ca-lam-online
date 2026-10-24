@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
+import { calculateDuration } from '../../../utils/formatters';
 import CustomInput from '../../CustomInput';
 import CustomButton from '../../CustomButton';
 
@@ -46,6 +47,8 @@ export const ShiftFormModal = ({
     setError('');
   }, [initialShift, visible]);
 
+  const durationHours = useMemo(() => calculateDuration(startTime, endTime), [startTime, endTime]);
+
   const handleSave = () => {
     if (!name.trim()) {
       setError('Vui lòng nhập tên ca làm việc.');
@@ -55,12 +58,17 @@ export const ShiftFormModal = ({
       setError('Vui lòng nhập giờ bắt đầu và kết thúc.');
       return;
     }
+    if (durationHours <= 0) {
+      setError('Giờ kết thúc phải khác giờ bắt đầu (thời lượng phải lớn hơn 0 tiếng).');
+      return;
+    }
 
     onSave({
       _id: initialShift?._id,
       name: name.trim(),
       startTime: startTime.trim(),
       endTime: endTime.trim(),
+      durationHours,
       peakLevel,
       minEmployees: Number(minEmployees) || 1,
       maxEmployees: Number(maxEmployees) || 2,
@@ -130,6 +138,14 @@ export const ShiftFormModal = ({
                   }}
                 />
               </View>
+            </View>
+
+            {/* Calculated duration badge */}
+            <View style={styles.durationBadge}>
+              <Ionicons name="time" size={14} color={colors.primary} />
+              <Text style={styles.durationBadgeText}>
+                Thời lượng ca: <Text style={{ fontWeight: '800' }}>{durationHours} tiếng</Text>
+              </Text>
             </View>
 
             {/* Peak Level Stars */}
@@ -285,6 +301,24 @@ const styles = StyleSheet.create({
   },
   peakPillTextActive: {
     color: '#B45309',
+  },
+  durationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 14,
+  },
+  durationBadgeText: {
+    fontSize: 11,
+    color: colors.primaryDark,
+    fontWeight: '600',
   },
   btnRow: {
     flexDirection: 'row',
