@@ -2,19 +2,19 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { storeApi } from '../services/api';
 import colors from '../theme/colors';
-import CustomButton from '../components/CustomButton';
+
+import JoinCodeSection from '../components/store/JoinCodeSection';
+import ShareEmailSection from '../components/store/ShareEmailSection';
 
 export const JoinStoreScreen = () => {
   const { user, fetchMyStore, logout } = useAuth();
@@ -74,15 +74,11 @@ export const JoinStoreScreen = () => {
       setError('');
       setSuccessMsg('');
       const res = await storeApi.joinByCode(code);
-      if (res && res.success) {
-        setSuccessMsg(res.message || 'Gia nhập cửa hàng thành công!');
-        // Refresh store state
-        await fetchMyStore();
-      } else {
-        setError(res?.message || 'Mã mời không hợp lệ hoặc đã hết hạn.');
-      }
+      setSuccessMsg(res.message || 'Gia nhập cửa hàng thành công!');
+      // Tải lại cửa hàng để RootNavigator tự động chuyển vào AppNavigator
+      await fetchMyStore();
     } catch (err) {
-      setError(err.message || 'Không thể gia nhập cửa hàng. Vui lòng kiểm tra lại mã.');
+      setError(err.message || 'Mã mời không đúng hoặc đã hết hạn.');
     } finally {
       setLoading(false);
     }
@@ -130,87 +126,22 @@ export const JoinStoreScreen = () => {
         ) : null}
 
         {/* Method 1: Enter 6-digit Code */}
-        <View style={styles.card}>
-          <View style={styles.methodHeader}>
-            <View style={styles.badgeNumber}>
-              <Text style={styles.badgeNumberText}>1</Text>
-            </View>
-            <Text style={styles.methodTitle}>Nhập mã mời 6 chữ số</Text>
-          </View>
-          <Text style={styles.methodDesc}>
-            Mã ngẫu nhiên do Chủ quán cấp, có hiệu lực trong vòng 60 phút.
-          </Text>
-
-          <View style={styles.codeContainer}>
-            {digits.map((digit, idx) => (
-              <TextInput
-                key={idx}
-                ref={(el) => (inputsRef.current[idx] = el)}
-                style={[styles.codeBox, digit ? styles.codeBoxFilled : null]}
-                keyboardType="number-pad"
-                maxLength={1}
-                value={digit}
-                onChangeText={(v) => handleDigitChange(idx, v)}
-                onKeyPress={(e) => handleDigitKeyPress(idx, e)}
-              />
-            ))}
-          </View>
-
-          <CustomButton
-            title="Gia nhập cửa hàng"
-            onPress={handleJoin}
-            loading={loading}
-            disabled={digits.join('').length !== 6}
-            style={styles.joinBtn}
-          />
-        </View>
+        <JoinCodeSection
+          digits={digits}
+          inputsRef={inputsRef}
+          onDigitChange={handleDigitChange}
+          onDigitKeyPress={handleDigitKeyPress}
+          onJoin={handleJoin}
+          loading={loading}
+        />
 
         {/* Method 2: Share Email */}
-        <View style={styles.card}>
-          <View style={styles.methodHeader}>
-            <View style={[styles.badgeNumber, styles.badgeNumberAlt]}>
-              <Text style={styles.badgeNumberTextAlt}>2</Text>
-            </View>
-            <Text style={styles.methodTitle}>Gửi Email tài khoản cho Chủ quán</Text>
-          </View>
-          <Text style={styles.methodDesc}>
-            Chủ quán có thể thêm trực tiếp tài khoản của bạn vào hệ thống bằng Email:
-          </Text>
-
-          <View style={styles.emailBox}>
-            <Text style={styles.emailText}>{user?.email || 'email@calam.vn'}</Text>
-            <TouchableOpacity
-              onPress={handleCopyEmail}
-              style={styles.copyBtn}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={copiedEmail ? 'checkmark-outline' : 'copy-outline'}
-                size={16}
-                color={copiedEmail ? colors.success : colors.primary}
-              />
-              <Text
-                style={[
-                  styles.copyBtnText,
-                  copiedEmail && { color: colors.success },
-                ]}
-              >
-                {copiedEmail ? 'Đã sao chép' : 'Sao chép'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.refreshStoreBtn}
-            onPress={fetchMyStore}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="refresh-outline" size={16} color={colors.primary} />
-            <Text style={styles.refreshStoreBtnText}>
-              Đã được thêm? Bấm kiểm tra lại
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <ShareEmailSection
+          email={user?.email}
+          copiedEmail={copiedEmail}
+          onCopyEmail={handleCopyEmail}
+          onRefreshStore={fetchMyStore}
+        />
 
         {/* Logout Option */}
         <TouchableOpacity
@@ -229,7 +160,7 @@ export const JoinStoreScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8F9FC',
   },
   scrollContent: {
     flexGrow: 1,
@@ -299,129 +230,9 @@ const styles = StyleSheet.create({
   },
   successBannerText: {
     fontSize: 11,
-    color: '#065F46',
+    color: colors.success,
     fontWeight: '600',
     flex: 1,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  methodHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  badgeNumber: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeNumberText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  badgeNumberAlt: {
-    backgroundColor: '#E2E8F0',
-  },
-  badgeNumberTextAlt: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textSecondary,
-  },
-  methodTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  methodDesc: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginBottom: 14,
-    lineHeight: 16,
-  },
-  codeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  codeBox: {
-    width: 44,
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    textAlign: 'center',
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  codeBoxFilled: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFFFF',
-  },
-  joinBtn: {
-    marginTop: 2,
-  },
-  emailBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
-  },
-  emailText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  copyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-  },
-  copyBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  refreshStoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 6,
-  },
-  refreshStoreBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -429,11 +240,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 12,
+    marginTop: 8,
   },
   logoutText: {
     fontSize: 12,
-    fontWeight: '700',
     color: colors.danger,
+    fontWeight: '700',
   },
 });
 

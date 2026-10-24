@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
@@ -12,8 +11,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { authApi } from '../services/api';
 import colors from '../theme/colors';
-import CustomInput from '../components/CustomInput';
-import CustomButton from '../components/CustomButton';
+
+import StepEmail from '../components/auth/forgot-password/StepEmail';
+import StepOtp from '../components/auth/forgot-password/StepOtp';
+import StepNewPassword from '../components/auth/forgot-password/StepNewPassword';
+import StepSuccess from '../components/auth/forgot-password/StepSuccess';
 
 export const ForgotPasswordScreen = ({ route, navigation }) => {
   const initialEmail = route?.params?.initialEmail || '';
@@ -119,7 +121,7 @@ export const ForgotPasswordScreen = ({ route, navigation }) => {
   const handleVerifyOtp = async () => {
     const otpCode = otpDigits.join('');
     if (otpCode.length !== 6) {
-      setError('Vui lòng nhập đủ 6 chữ số mã OTP.');
+      setError('Vui lòng nhập đầy đủ 6 số OTP.');
       return;
     }
 
@@ -127,10 +129,10 @@ export const ForgotPasswordScreen = ({ route, navigation }) => {
       setLoading(true);
       setError('');
       await authApi.verifyResetOtp(email.trim().toLowerCase(), otpCode);
-      setInfoMsg('Mã OTP chính xác. Mời bạn đặt mật khẩu mới.');
       setStep(3);
+      setInfoMsg('Xác thực OTP thành công! Vui lòng đặt mật khẩu mới.');
     } catch (err) {
-      setError(err.message || 'Mã OTP không đúng hoặc đã hết hạn.');
+      setError(err.message || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
     } finally {
       setLoading(false);
     }
@@ -138,12 +140,16 @@ export const ForgotPasswordScreen = ({ route, navigation }) => {
 
   // Step 3: Reset Password
   const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword || !confirmPassword) {
+      setError('Vui lòng nhập mật khẩu mới và xác nhận mật khẩu.');
+      return;
+    }
+    if (newPassword.length < 6) {
       setError('Mật khẩu mới phải có tối thiểu 6 ký tự.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp.');
+      setError('Mật khẩu xác nhận không trùng khớp.');
       return;
     }
 
@@ -243,150 +249,57 @@ export const ForgotPasswordScreen = ({ route, navigation }) => {
             </View>
           ) : null}
 
-          {/* STEP 1: Email */}
+          {/* Step 1: Input Email */}
           {step === 1 && (
-            <View>
-              <CustomInput
-                label="Địa chỉ Email"
-                required
-                placeholder="an.nguyen@calam.vn"
-                value={email}
-                onChangeText={(t) => {
-                  setEmail(t);
-                  setError('');
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                leftIcon={
-                  <Ionicons name="mail-outline" size={18} color={colors.textSecondary} />
-                }
-              />
-
-              <CustomButton
-                title="Gửi mã OTP qua Email"
-                onPress={handleSendOtp}
-                loading={loading}
-                style={styles.submitBtn}
-              />
-            </View>
+            <StepEmail
+              email={email}
+              onChangeEmail={(t) => {
+                setEmail(t);
+                setError('');
+              }}
+              onSubmit={handleSendOtp}
+              loading={loading}
+            />
           )}
 
-          {/* STEP 2: OTP */}
+          {/* Step 2: 6-Digit OTP */}
           {step === 2 && (
-            <View>
-              <Text style={styles.otpLabel}>Nhập mã xác thực 6 số (OTP)</Text>
-              <View style={styles.otpContainer}>
-                {otpDigits.map((digit, idx) => (
-                  <TextInput
-                    key={idx}
-                    ref={(el) => (otpInputsRef.current[idx] = el)}
-                    style={[
-                      styles.otpBox,
-                      digit ? styles.otpBoxFilled : null,
-                    ]}
-                    keyboardType="number-pad"
-                    maxLength={1}
-                    value={digit}
-                    onChangeText={(v) => handleOtpChange(idx, v)}
-                    onKeyPress={(e) => handleOtpKeyPress(idx, e)}
-                  />
-                ))}
-              </View>
-
-              <Text style={styles.otpExpiryNote}>
-                Mã xác thực có hiệu lực trong vòng 10 phút.
-              </Text>
-
-              <View style={styles.resendRow}>
-                <TouchableOpacity onPress={() => setStep(1)}>
-                  <Text style={styles.changeEmailText}>Đổi email</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleResendOtp}
-                  disabled={resendCountdown > 0 || loading}
-                >
-                  <Text
-                    style={[
-                      styles.resendText,
-                      resendCountdown > 0 && styles.resendTextDisabled,
-                    ]}
-                  >
-                    {resendCountdown > 0
-                      ? `Gửi lại sau ${resendCountdown}s`
-                      : 'Gửi lại mã OTP'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <CustomButton
-                title="Xác thực mã OTP"
-                onPress={handleVerifyOtp}
-                loading={loading}
-                disabled={otpDigits.join('').length !== 6}
-                style={styles.submitBtn}
-              />
-            </View>
+            <StepOtp
+              otpDigits={otpDigits}
+              otpInputsRef={otpInputsRef}
+              resendCountdown={resendCountdown}
+              loading={loading}
+              onChangeDigit={handleOtpChange}
+              onKeyPress={handleOtpKeyPress}
+              onChangeEmailPress={() => setStep(1)}
+              onResendOtp={handleResendOtp}
+              onSubmit={handleVerifyOtp}
+            />
           )}
 
-          {/* STEP 3: New Password */}
+          {/* Step 3: New Password */}
           {step === 3 && (
-            <View>
-              <CustomInput
-                label="Mật khẩu mới"
-                required
-                placeholder="Tối thiểu 6 ký tự"
-                value={newPassword}
-                onChangeText={(t) => {
-                  setNewPassword(t);
-                  setError('');
-                }}
-                secureTextEntry
-                leftIcon={
-                  <Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />
-                }
-              />
-
-              <CustomInput
-                label="Xác nhận mật khẩu mới"
-                required
-                placeholder="Nhập lại mật khẩu mới"
-                value={confirmPassword}
-                onChangeText={(t) => {
-                  setConfirmPassword(t);
-                  setError('');
-                }}
-                secureTextEntry
-                leftIcon={
-                  <Ionicons name="shield-checkmark-outline" size={18} color={colors.textSecondary} />
-                }
-              />
-
-              <CustomButton
-                title="Lưu mật khẩu mới"
-                onPress={handleResetPassword}
-                loading={loading}
-                style={styles.submitBtn}
-              />
-            </View>
+            <StepNewPassword
+              newPassword={newPassword}
+              confirmPassword={confirmPassword}
+              onChangeNewPassword={(t) => {
+                setNewPassword(t);
+                setError('');
+              }}
+              onChangeConfirmPassword={(t) => {
+                setConfirmPassword(t);
+                setError('');
+              }}
+              onSubmit={handleResetPassword}
+              loading={loading}
+            />
           )}
 
-          {/* STEP 4: Success Done */}
+          {/* Step 4: Success */}
           {step === 4 && (
-            <View style={styles.successContainer}>
-              <View style={styles.successIconBox}>
-                <Ionicons name="checkmark-done-circle" size={48} color={colors.success} />
-              </View>
-              <Text style={styles.successTitle}>Mật khẩu đã được cập nhật!</Text>
-              <Text style={styles.successDesc}>
-                Bạn có thể đăng nhập ngay bằng mật khẩu mới để tiếp tục sử dụng hệ thống.
-              </Text>
-              <CustomButton
-                title="Quay lại Đăng nhập"
-                onPress={() => navigation.navigate('Login')}
-                style={styles.submitBtn}
-              />
-            </View>
+            <StepSuccess
+              onGoToLogin={() => navigation.navigate('Login')}
+            />
           )}
         </View>
       </ScrollView>
@@ -397,7 +310,7 @@ export const ForgotPasswordScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8F9FC',
   },
   scrollContent: {
     flexGrow: 1,
@@ -451,20 +364,19 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#FED7AA',
   },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    paddingHorizontal: 20,
   },
   stepDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#E2E8F0',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -472,7 +384,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   stepNum: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.textSecondary,
   },
@@ -480,10 +392,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   stepLine: {
-    flex: 1,
+    width: 32,
     height: 2,
     backgroundColor: '#E2E8F0',
-    marginHorizontal: 8,
+    marginHorizontal: 4,
   },
   stepLineActive: {
     backgroundColor: colors.primary,
@@ -496,11 +408,11 @@ const styles = StyleSheet.create({
     borderColor: '#FECACA',
     borderRadius: 12,
     padding: 10,
-    marginBottom: 14,
+    marginBottom: 16,
     gap: 8,
   },
   errorBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.danger,
     fontWeight: '600',
     flex: 1,
@@ -513,92 +425,14 @@ const styles = StyleSheet.create({
     borderColor: '#A7F3D0',
     borderRadius: 12,
     padding: 10,
-    marginBottom: 14,
+    marginBottom: 16,
     gap: 8,
   },
   infoBannerText: {
-    fontSize: 11,
-    color: '#065F46',
+    fontSize: 12,
+    color: colors.success,
     fontWeight: '600',
     flex: 1,
-  },
-  otpLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  otpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  otpBox: {
-    width: 44,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  otpBoxFilled: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFFFF',
-  },
-  otpExpiryNote: {
-    fontSize: 11,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginBottom: 14,
-  },
-  resendRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  changeEmailText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  resendText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  resendTextDisabled: {
-    color: colors.textMuted,
-  },
-  submitBtn: {
-    marginTop: 6,
-  },
-  successContainer: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  successIconBox: {
-    marginBottom: 12,
-  },
-  successTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 6,
-  },
-  successDesc: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 16,
   },
 });
 

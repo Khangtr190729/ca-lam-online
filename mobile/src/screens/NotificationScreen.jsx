@@ -10,13 +10,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import colors from '../theme/colors';
+import NotificationItem from '../components/notification/NotificationItem';
 
 export const NotificationScreen = () => {
   const { store } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('ALL'); // 'ALL' | 'SCHEDULE' | 'EVALUATION'
 
-  // Notifications mock / data derived from store events
   const [notifications] = useState([
     {
       id: '1',
@@ -56,34 +56,11 @@ export const NotificationScreen = () => {
     return n.type === filter;
   });
 
-  const getIcon = (type) => {
-    switch (type) {
-      case 'SCHEDULE':
-        return <Ionicons name="calendar" size={20} color={colors.primary} />;
-      case 'EVALUATION':
-        return <Ionicons name="ribbon" size={20} color="#10B981" />;
-      case 'INVITE':
-      default:
-        return <Ionicons name="storefront" size={20} color="#3B82F6" />;
-    }
-  };
-
-  const getIconBg = (type) => {
-    switch (type) {
-      case 'SCHEDULE':
-        return colors.primaryLight;
-      case 'EVALUATION':
-        return '#ECFDF5';
-      case 'INVITE':
-      default:
-        return '#EFF6FF';
-    }
-  };
-
   return (
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -101,70 +78,46 @@ export const NotificationScreen = () => {
           </Text>
         </View>
 
-        {/* Filter Chips */}
+        {/* Filter Pills */}
         <View style={styles.filterRow}>
           {[
-            { id: 'ALL', label: 'Tất cả' },
-            { id: 'SCHEDULE', label: 'Lịch làm' },
-            { id: 'EVALUATION', label: 'Đánh giá' },
-          ].map((tab) => (
+            { key: 'ALL', label: 'Tất cả' },
+            { key: 'SCHEDULE', label: 'Lịch làm' },
+            { key: 'EVALUATION', label: 'Đánh giá' },
+          ].map((item) => (
             <TouchableOpacity
-              key={tab.id}
+              key={item.key}
               style={[
-                styles.filterChip,
-                filter === tab.id && styles.filterChipSelected,
+                styles.filterPill,
+                filter === item.key && styles.filterPillActive,
               ]}
-              onPress={() => setFilter(tab.id)}
+              onPress={() => setFilter(item.key)}
               activeOpacity={0.7}
             >
               <Text
                 style={[
-                  styles.filterChipText,
-                  filter === tab.id && styles.filterChipTextSelected,
+                  styles.filterPillText,
+                  filter === item.key && styles.filterPillTextActive,
                 ]}
               >
-                {tab.label}
+                {item.label}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Notification List */}
+        {/* Notifications List */}
         {filteredNotifications.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="notifications-off-outline" size={40} color={colors.textMuted} />
+          <View style={styles.emptyBox}>
+            <Ionicons name="notifications-off-outline" size={36} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>Chưa có thông báo nào</Text>
             <Text style={styles.emptySubtitle}>
-              Khi có lịch làm mới hoặc thông tin từ cửa hàng, bạn sẽ nhận được thông báo tại đây.
+              Các cập nhật mới nhất từ cửa hàng sẽ xuất hiện tại đây.
             </Text>
           </View>
         ) : (
-          filteredNotifications.map((item) => (
-            <View
-              key={item.id}
-              style={[
-                styles.notificationCard,
-                !item.read && styles.notificationCardUnread,
-              ]}
-            >
-              <View
-                style={[
-                  styles.iconContainer,
-                  { backgroundColor: getIconBg(item.type) },
-                ]}
-              >
-                {getIcon(item.type)}
-              </View>
-
-              <View style={styles.contentContainer}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.notificationTitle}>{item.title}</Text>
-                  {!item.read && <View style={styles.unreadDot} />}
-                </View>
-                <Text style={styles.notificationMessage}>{item.message}</Text>
-                <Text style={styles.timeText}>{item.time}</Text>
-              </View>
-            </View>
+          filteredNotifications.map((n) => (
+            <NotificationItem key={n.id} notification={n} />
           ))
         )}
       </ScrollView>
@@ -175,19 +128,21 @@ export const NotificationScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8F9FC',
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
+    padding: 20,
+    paddingBottom: 40,
   },
   header: {
     marginBottom: 16,
+    marginTop: 4,
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '900',
     color: colors.text,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 12,
@@ -199,94 +154,34 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
   },
-  filterChip: {
+  filterPill: {
     paddingVertical: 6,
     paddingHorizontal: 14,
-    borderRadius: 12,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  filterChipSelected: {
+  filterPillActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  filterChipText: {
+  filterPillText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.textSecondary,
   },
-  filterChipTextSelected: {
+  filterPillTextActive: {
     color: '#FFFFFF',
-    fontWeight: '700',
   },
-  notificationCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  notificationCardUnread: {
-    borderColor: '#FED7AA',
-    backgroundColor: '#FFFCFA',
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  notificationTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-    flex: 1,
-  },
-  unreadDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.primary,
-    marginLeft: 6,
-  },
-  notificationMessage: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    lineHeight: 16,
-    marginBottom: 6,
-  },
-  timeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  emptyContainer: {
+  emptyBox: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
     marginTop: 20,
   },
   emptyTitle: {
@@ -294,13 +189,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginTop: 10,
+    marginBottom: 4,
   },
   emptySubtitle: {
-    fontSize: 11,
-    color: colors.textMuted,
+    fontSize: 12,
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 16,
   },
 });
 
