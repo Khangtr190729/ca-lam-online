@@ -24,13 +24,6 @@ export const getStoreSchedule = async (req, res) => {
     const { week, year } = req.query;
     const userId = req.user.id;
 
-    if (!week || !year) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp tham số tuần (week) và năm (year). Ví dụ: ?week=43&year=2026',
-      });
-    }
-
     const access = await verifyStoreAccess(storeId, userId);
     if (access.error) {
       return res.status(404).json({ success: false, message: access.error });
@@ -91,13 +84,6 @@ export const saveDraftSchedule = async (req, res) => {
     const { storeId } = req.params;
     const { week, year, startDate, endDate, assignments = [] } = req.body;
     const userId = req.user.id;
-
-    if (!week || !year || !startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp đầy đủ: week, year, startDate, endDate.',
-      });
-    }
 
     const access = await verifyStoreAccess(storeId, userId);
     if (access.error) {
@@ -190,13 +176,6 @@ export const publishSchedule = async (req, res) => {
     const { storeId } = req.params;
     const { week, year, startDate, endDate, assignments } = req.body;
     const userId = req.user.id;
-
-    if (!week || !year) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp tham số week và year.',
-      });
-    }
 
     const access = await verifyStoreAccess(storeId, userId);
     if (access.error) {
@@ -463,13 +442,6 @@ export const autoGenerateSchedule = async (req, res) => {
       existingAssignments = [],
     } = req.body;
     const userId = req.user.id;
-
-    if (!week || !year || !startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp đầy đủ thông tin: week, year, startDate, endDate.',
-      });
-    }
 
     const access = await verifyStoreAccess(storeId, userId);
     if (access.error) {
