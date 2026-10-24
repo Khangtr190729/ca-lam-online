@@ -1,15 +1,37 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
-import { formatVND } from '../../utils/formatters';
+import { formatVND, getEmploymentTypeLabel } from '../../utils/formatters';
 
-export const StoreInfoSection = ({ store, roleInStore, hourlyWage }) => {
+export const StoreInfoSection = ({
+  store,
+  roleInStore,
+  hourlyWage,
+  employmentType,
+  isAdmin = false,
+  onOpenStoreSettings,
+}) => {
+  const empTypeInfo = getEmploymentTypeLabel(employmentType);
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Ionicons name="storefront" size={18} color={colors.primary} />
-        <Text style={styles.cardTitle}>Thông tin cửa hàng</Text>
+        <View style={styles.headerTitleRow}>
+          <Ionicons name="storefront" size={18} color={colors.primary} />
+          <Text style={styles.cardTitle}>Thông tin cửa hàng</Text>
+        </View>
+
+        {isAdmin && onOpenStoreSettings && (
+          <TouchableOpacity
+            style={styles.editStoreBtn}
+            onPress={onOpenStoreSettings}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="pencil" size={13} color={colors.primaryDark} />
+            <Text style={styles.editStoreBtnText}>Chỉnh sửa</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.infoRow}>
@@ -17,19 +39,53 @@ export const StoreInfoSection = ({ store, roleInStore, hourlyWage }) => {
         <Text style={styles.infoValue}>{store?.name || 'Chưa tham gia'}</Text>
       </View>
 
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Chế độ làm việc:</Text>
-        <View style={styles.roleInStoreBadge}>
-          <Text style={styles.roleInStoreText}>
-            {roleInStore === 'FULL_TIME' ? 'Full-time' : 'Part-time'}
-          </Text>
-        </View>
-      </View>
+      {isAdmin ? (
+        <>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Quyền hạn:</Text>
+            <View style={styles.ownerBadge}>
+              <Text style={styles.ownerBadgeText}>Chủ sở hữu cửa hàng 👑</Text>
+            </View>
+          </View>
 
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Lương thỏa thuận:</Text>
-        <Text style={styles.wageValue}>{formatVND(hourlyWage)}/h</Text>
-      </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Địa chỉ quán:</Text>
+            <Text style={styles.infoValue} numberOfLines={2}>
+              {store?.address || 'Chưa cập nhật địa chỉ'}
+            </Text>
+          </View>
+        </>
+      ) : (
+        <>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Chức vụ:</Text>
+            <View style={styles.roleInStoreBadge}>
+              <Text style={styles.roleInStoreText}>
+                {roleInStore === 'MANAGER' ? 'Quản lý cửa hàng' : 'Nhân viên'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Chế độ làm việc:</Text>
+            <View
+              style={[
+                styles.typeBadge,
+                { backgroundColor: empTypeInfo.bg, borderColor: empTypeInfo.border },
+              ]}
+            >
+              <Text style={[styles.typeBadgeText, { color: empTypeInfo.color }]}>
+                {empTypeInfo.shortText}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Lương thỏa thuận:</Text>
+            <Text style={styles.wageValue}>{formatVND(hourlyWage)}/h</Text>
+          </View>
+        </>
+      )}
     </View>
   );
 };
@@ -51,16 +107,35 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     marginBottom: 14,
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   cardTitle: {
     fontSize: 14,
     fontWeight: '800',
     color: colors.text,
+  },
+  editStoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryLight,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  editStoreBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primaryDark,
   },
   infoRow: {
     flexDirection: 'row',
@@ -77,9 +152,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: colors.text,
+    maxWidth: 220,
+    textAlign: 'right',
+  },
+  ownerBadge: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  ownerBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.primaryDark,
   },
   roleInStoreBadge: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
     paddingVertical: 2,
     paddingHorizontal: 8,
     borderRadius: 6,
@@ -87,7 +179,17 @@ const styles = StyleSheet.create({
   roleInStoreText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.primaryDark,
+    color: '#1D4ED8',
+  },
+  typeBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   wageValue: {
     fontSize: 13,

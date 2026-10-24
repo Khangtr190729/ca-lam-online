@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import {
   TouchableOpacity,
   ScrollView,
@@ -6,19 +5,34 @@ import {
   Platform,
   StyleSheet,
   Text,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
-import { userApi } from '../services/api';
+import { userApi, storeApi } from '../services/api';
 import colors from '../theme/colors';
 
 import ProfileHeader from '../components/profile/ProfileHeader';
 import StoreInfoSection from '../components/profile/StoreInfoSection';
 import EditProfileSection from '../components/profile/EditProfileSection';
 import ChangePasswordSection from '../components/profile/ChangePasswordSection';
+import StoreSettingsModal from '../components/profile/StoreSettingsModal';
 
 export const ProfileScreen = () => {
-  const { user, store, roleInStore, hourlyWage, logout, refreshUserAndStore } = useAuth();
+  const {
+    user,
+    store,
+    roleInStore,
+    employmentType,
+    hourlyWage,
+    isAdmin,
+    logout,
+    refreshUserAndStore,
+  } = useAuth();
+
+  // Store Settings Modal state
+  const [storeModalVisible, setStoreModalVisible] = useState(false);
+  const [savingStore, setSavingStore] = useState(false);
 
   // Profile Form state
   const [fullName, setFullName] = useState(user?.fullName || '');
@@ -103,6 +117,39 @@ export const ProfileScreen = () => {
     }
   };
 
+  // Handle Update Store Settings (Chủ quán)
+  const handleSaveStore = async (storeData) => {
+    try {
+      setSavingStore(true);
+      const res = await storeApi.updateMyStore(storeData);
+      if (res && res.success) {
+        Alert.alert('Thành công', 'Đã cập nhật thông tin cửa hàng thành công!');
+        setStoreModalVisible(false);
+        await refreshUserAndStore();
+      }
+    } catch (err) {
+      Alert.alert('Lỗi', err.message || 'Không thể cập nhật cửa hàng.');
+    } finally {
+      setSavingStore(false);
+    }
+  };
+
+  // Handle Logout Confirmation
+  const handleConfirmLogout = () => {
+    Alert.alert(
+      'Đăng xuất',
+      'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: logout,
+        },
+      ]
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -115,13 +162,20 @@ export const ProfileScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* 1. Profile Header */}
-        <ProfileHeader user={user} />
+        <ProfileHeader
+          user={user}
+          roleInStore={roleInStore}
+          isAdmin={isAdmin}
+        />
 
         {/* 2. Store Info Section */}
         <StoreInfoSection
           store={store}
           roleInStore={roleInStore}
+          employmentType={employmentType}
           hourlyWage={hourlyWage}
+          isAdmin={isAdmin}
+          onOpenStoreSettings={() => setStoreModalVisible(true)}
         />
 
         {/* 3. Personal Info Form */}
@@ -171,13 +225,24 @@ export const ProfileScreen = () => {
         {/* Logout Button */}
         <TouchableOpacity
           style={styles.logoutBtn}
-          onPress={logout}
+          onPress={handleConfirmLogout}
           activeOpacity={0.8}
         >
           <Ionicons name="log-out-outline" size={18} color={colors.danger} />
           <Text style={styles.logoutBtnText}>Đăng xuất tài khoản</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Store Settings Modal for Store Owner */}
+      {isAdmin && (
+        <StoreSettingsModal
+          visible={storeModalVisible}
+          onClose={() => setStoreModalVisible(false)}
+          store={store}
+          onSave={handleSaveStore}
+          saving={savingStore}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 };

@@ -22,6 +22,7 @@ export const RegisterScreen = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [gender, setGender] = useState('Nam');
   const [age, setAge] = useState('');
+  const [systemRole, setSystemRole] = useState('ADMIN'); // 'ADMIN' | 'EMPLOYEE'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -56,7 +57,7 @@ export const RegisterScreen = ({ navigation }) => {
         password,
         gender,
         age: parsedAge,
-        systemRole: 'EMPLOYEE',
+        systemRole: systemRole,
       });
       // Successful registration will auto-login via context state change
     } catch (err) {
@@ -89,7 +90,9 @@ export const RegisterScreen = ({ navigation }) => {
         <View style={styles.header}>
           <Text style={styles.title}>Đăng ký tài khoản</Text>
           <Text style={styles.subtitle}>
-            Tài khoản dành cho Người đi làm / Nhân viên cửa hàng
+            {systemRole === 'ADMIN'
+              ? 'Thiết lập tài khoản Quản lý & Chủ sở hữu cửa hàng'
+              : 'Thiết lập tài khoản Người đi làm / Nhân viên trực ca'}
           </Text>
         </View>
 
@@ -100,6 +103,82 @@ export const RegisterScreen = ({ navigation }) => {
               <Text style={styles.errorBannerText}>{error}</Text>
             </View>
           ) : null}
+
+          {/* Role Selection Cards */}
+          <View style={styles.roleSelectionBox}>
+            <Text style={styles.sectionLabel}>
+              Bạn đăng ký với vai trò gì? <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={styles.roleCardsRow}>
+              {/* Card 1: ADMIN */}
+              <TouchableOpacity
+                style={[
+                  styles.roleCard,
+                  systemRole === 'ADMIN' && styles.roleCardActive,
+                ]}
+                onPress={() => setSystemRole('ADMIN')}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.roleIconCircle,
+                    systemRole === 'ADMIN' && styles.roleIconCircleActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="storefront"
+                    size={20}
+                    color={systemRole === 'ADMIN' ? '#FFFFFF' : colors.primary}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.roleCardTitle,
+                    systemRole === 'ADMIN' && styles.roleCardTitleActive,
+                  ]}
+                >
+                  Chủ cửa hàng
+                </Text>
+                <Text style={styles.roleCardDesc}>
+                  Quản lý quán, tạo ca làm & tính lương
+                </Text>
+              </TouchableOpacity>
+
+              {/* Card 2: EMPLOYEE */}
+              <TouchableOpacity
+                style={[
+                  styles.roleCard,
+                  systemRole === 'EMPLOYEE' && styles.roleCardActive,
+                ]}
+                onPress={() => setSystemRole('EMPLOYEE')}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.roleIconCircle,
+                    { backgroundColor: systemRole === 'EMPLOYEE' ? '#059669' : '#ECFDF5' },
+                  ]}
+                >
+                  <Ionicons
+                    name="briefcase"
+                    size={20}
+                    color={systemRole === 'EMPLOYEE' ? '#FFFFFF' : '#059669'}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.roleCardTitle,
+                    systemRole === 'EMPLOYEE' && styles.roleCardTitleActive,
+                  ]}
+                >
+                  Người đi làm
+                </Text>
+                <Text style={styles.roleCardDesc}>
+                  Xem lịch làm việc, theo dõi lương ca
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           <CustomInput
             label="Họ và tên"
@@ -207,14 +286,6 @@ export const RegisterScreen = ({ navigation }) => {
               <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
             }
           />
-
-          {/* Role Announcement */}
-          <View style={styles.roleNotice}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
-            <Text style={styles.roleNoticeText}>
-              Vai trò tài khoản mặc định: <Text style={styles.bold}>Người đi làm (EMPLOYEE)</Text>.
-            </Text>
-          </View>
 
           <CustomButton
             title="Hoàn tất đăng ký"
@@ -331,21 +402,58 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     fontWeight: '700',
   },
-  roleNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primaryUltraLight,
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-    gap: 8,
+  roleSelectionBox: {
     marginBottom: 16,
   },
-  roleNoticeText: {
-    fontSize: 11,
-    color: '#7C2D12',
+  roleCardsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roleCard: {
     flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  roleCardActive: {
+    backgroundColor: '#FFF7ED',
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  roleIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  roleIconCircleActive: {
+    backgroundColor: colors.primary,
+  },
+  roleCardTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  roleCardTitleActive: {
+    color: colors.primaryDark,
+  },
+  roleCardDesc: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 14,
   },
   bold: {
     fontWeight: '700',

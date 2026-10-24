@@ -103,3 +103,52 @@ export const formatWeekRange = (mondayDate) => {
   const y = sundayDate.getFullYear();
   return `${m1}/${mo1} — ${m2}/${mo2}/${y}`;
 };
+
+/**
+ * Lấy nhãn vai trò và màu sắc hiển thị
+ */
+export const getRoleLabel = (role) => {
+  switch (role) {
+    case 'ADMIN':
+      return { text: 'Chủ cửa hàng', shortText: 'Chủ quán', color: '#EA701B', bg: '#FFF7ED', border: '#FED7AA' };
+    case 'MANAGER':
+      return { text: 'Quản lý cửa hàng', shortText: 'Quản lý', color: '#2563EB', bg: '#EFF6FF', border: '#BFDBFE' };
+    case 'EMPLOYEE':
+    default:
+      return { text: 'Nhân viên cửa hàng', shortText: 'Nhân viên', color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' };
+  }
+};
+
+/**
+ * Lấy nhãn chế độ làm việc
+ */
+export const getEmploymentTypeLabel = (type) => {
+  switch (type) {
+    case 'FULL_TIME':
+      return { text: 'Toàn thời gian (Full-time)', shortText: 'Full-time', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' };
+    case 'PART_TIME':
+    default:
+      return { text: 'Bán thời gian (Part-time)', shortText: 'Part-time', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' };
+  }
+};
+
+/**
+ * Tính số giờ làm giữa 2 mốc thời gian "HH:MM"
+ */
+export const calculateDuration = (startTime, endTime) => {
+  if (!startTime || !endTime) return 0;
+  try {
+    const [startH, startM] = startTime.split(':').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+    const startMin = (startH || 0) * 60 + (startM || 0);
+    let endMin = (endH || 0) * 60 + (endM || 0);
+    if (endMin < startMin) {
+      endMin += 1440; // Ca đêm qua 0h
+    } else if (endMin === startMin) {
+      return 0;
+    }
+    return Math.round(((endMin - startMin) / 60) * 10) / 10;
+  } catch {
+    return 0;
+  }
+};

@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [store, setStore] = useState(null);
   const [roleInStore, setRoleInStore] = useState(null);
+  const [employmentType, setEmploymentType] = useState('PART_TIME');
   const [hourlyWage, setHourlyWage] = useState(0);
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -18,22 +19,30 @@ export const AuthProvider = ({ children }) => {
       const res = await storeApi.getMyStore();
       if (res && res.success && res.store) {
         setStore(res.store);
-        setRoleInStore(res.roleInStore || (res.store.ownerId === user?.id ? 'OWNER' : 'EMPLOYEE'));
+        const resolvedRole =
+          res.roleInStore ||
+          (user?.systemRole === 'ADMIN' || String(res.store.ownerId) === String(user?._id || user?.id)
+            ? 'ADMIN'
+            : 'EMPLOYEE');
+        setRoleInStore(resolvedRole);
+        setEmploymentType(res.employmentType || 'PART_TIME');
         setHourlyWage(res.hourlyWage || 0);
         return res.store;
       } else {
         setStore(null);
-        setRoleInStore(null);
+        setRoleInStore(user?.systemRole === 'ADMIN' ? 'ADMIN' : null);
+        setEmploymentType('PART_TIME');
         setHourlyWage(0);
         return null;
       }
     } catch {
       setStore(null);
-      setRoleInStore(null);
+      setRoleInStore(user?.systemRole === 'ADMIN' ? 'ADMIN' : null);
+      setEmploymentType('PART_TIME');
       setHourlyWage(0);
       return null;
     }
-  }, [user?.id]);
+  }, [user?._id, user?.id, user?.systemRole]);
 
   // Khôi phục phiên đăng nhập khi khởi động ứng dụng
   useEffect(() => {
@@ -83,16 +92,24 @@ export const AuthProvider = ({ children }) => {
           const storeRes = await storeApi.getMyStore();
           if (storeRes && storeRes.success && storeRes.store) {
             setStore(storeRes.store);
-            setRoleInStore(storeRes.roleInStore || (res.user.systemRole === 'ADMIN' ? 'OWNER' : 'EMPLOYEE'));
+            const resolvedRole =
+              storeRes.roleInStore ||
+              (res.user.systemRole === 'ADMIN' || String(storeRes.store.ownerId) === String(res.user._id || res.user.id)
+                ? 'ADMIN'
+                : 'EMPLOYEE');
+            setRoleInStore(resolvedRole);
+            setEmploymentType(storeRes.employmentType || 'PART_TIME');
             setHourlyWage(storeRes.hourlyWage || 0);
           } else {
             setStore(null);
-            setRoleInStore(res.user.systemRole === 'ADMIN' ? 'OWNER' : null);
+            setRoleInStore(res.user.systemRole === 'ADMIN' ? 'ADMIN' : null);
+            setEmploymentType('PART_TIME');
             setHourlyWage(0);
           }
         } catch {
           setStore(null);
-          setRoleInStore(res.user.systemRole === 'ADMIN' ? 'OWNER' : null);
+          setRoleInStore(res.user.systemRole === 'ADMIN' ? 'ADMIN' : null);
+          setEmploymentType('PART_TIME');
           setHourlyWage(0);
         }
 
@@ -129,7 +146,7 @@ export const AuthProvider = ({ children }) => {
     const res = await storeApi.createStore(storeData);
     if (res && res.success && res.store) {
       setStore(res.store);
-      setRoleInStore('OWNER');
+      setRoleInStore('ADMIN');
       return res.store;
     }
     throw new Error(res?.message || 'Không thể tạo cửa hàng.');
@@ -146,6 +163,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setStore(null);
     setRoleInStore(null);
+    setEmploymentType('PART_TIME');
     setHourlyWage(0);
   };
 
@@ -163,13 +181,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const isAdmin =
+    user?.systemRole === 'ADMIN' ||
+    roleInStore === 'ADMIN' ||
+    (store?.ownerId && String(store.ownerId) === String(user?._id || user?.id));
+
   return (
     <AuthContext.Provider
       value={{
         user,
         store,
         roleInStore,
+        employmentType,
         hourlyWage,
+        isAdmin,
         token,
         isLoading,
         login,
@@ -178,6 +203,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         fetchMyStore,
         refreshUserAndStore,
+        setStore,
       }}
     >
       {children}
