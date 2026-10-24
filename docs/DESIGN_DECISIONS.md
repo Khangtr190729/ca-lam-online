@@ -98,3 +98,33 @@ Hệ thống tuân thủ nguyên tắc phân định trách nhiệm rõ ràng:
 1. **Chia sẻ Type / Schema giữa các ứng dụng:** Hiện tại chưa tạo package dùng chung (shared library) nhằm giữ cấu trúc tối giản. Khi chuyển sang giai đoạn sau, có cần thư mục shared hoặc package riêng cho các validation schema/constants dùng chung giữa Web/Mobile/Backend không?
 2. **Cấu hình Cross-Origin Resource Sharing (CORS):** Các miền được phép truy cập backend từ web và mobile dev server sẽ được chốt trong cấu hình backend ở Phase tiếp theo.
 3. **Cơ chế tải mới Token (Refresh Token Rotation):** Cần xác nhận có triển khai cơ chế Access Token ngắn hạn kết hợp Refresh Token hay chỉ sử dụng Access Token thông thường cho bản MVP.
+
+---
+
+## 6. Nguyên Tắc Kiến Trúc Modular & Single Responsibility (Mỗi File Một Việc)
+
+### Quyết định
+- **Tuyệt đối không viết dồn toàn bộ giao diện và logic vào một file duy nhất** (tránh các file quá lớn >250–300 dòng).
+- Mỗi file thành phần chỉ đảm nhiệm một trách nhiệm duy nhất (**Single Responsibility Principle**):
+  - **Trang chính (Page component):** Chỉ giữ vai trò quản lý state cấp cao (top-level state), fetch dữ liệu và điều phối các component con.
+  - **Thành phần giao diện (UI components):** Tách riêng từng modal, từng item trong danh sách, form nhập liệu, section giới thiệu thành các sub-components độc lập đặt trong thư mục `components/<feature>/`.
+  - **Tái sử dụng & Gọi lẫn nhau:** Các component con giao tiếp qua props và callbacks rõ ràng, dễ đọc, dễ kiểm thử và dễ bảo trì.
+- **Quy chuẩn Form & Dữ liệu:**
+  - Tránh gắn cứng dữ liệu mẫu (hardcoded options).
+  - Cung cấp các công cụ chọn linh hoạt như thẻ `<select>` với bước nhảy rõ ràng (10k, 20k, 30k... hoặc 0.5h, 1h...) và ô nhập văn bản tự do để người dùng chủ động điều chỉnh.
+
+---
+
+## 7. Quy Chuẩn Thiết Kế Đánh Giá Ca Làm & Khấu Trừ Lương (Shift Attendance & Deductions)
+
+### Quyết định
+Hệ thống thiết lập cơ chế đánh giá chuyên nghiệp với **3 trạng thái ca làm việc**:
+1. **Hoàn thành tốt (`COMPLETED`):** Nhân viên tham gia ca đầy đủ, hưởng 100% tiền lương ca.
+2. **Chưa hoàn thành tốt (`PARTIAL`):** Dành cho trường hợp nhân viên đi trễ, xin về sớm hoặc vi phạm quy chế nhẹ.
+   - Cho phép khấu trừ linh hoạt:
+     - **Theo số giờ:** Thẻ `<select>` chọn số giờ muốn trừ (`0.5h`, `1.0h`, `1.5h`... đến tối đa thời lượng ca).
+     - **Theo số tiền:** Thẻ `<select>` chọn số tiền trừ với bước nhảy `10.000đ` (`10.000đ`, `20.000đ`, `30.000đ`... đến giới hạn trần lương ca).
+   - Cho phép quản lý tự do nhập lý do vi phạm (tự động đính kèm vào email gửi nhân viên).
+   - Tự động hiển thị bảng xem trước tính toán lương thực nhận của ca làm việc.
+3. **Không hoàn thành (`MISSED`):** Dành cho trường hợp bỏ ca, vắng mặt không phép; khấu trừ 100% tiền lương ca và gửi email cảnh báo kỷ luật.
+
