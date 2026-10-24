@@ -22,15 +22,7 @@ export const createStore = async (req, res) => {
       });
     }
 
-    // 2. Kiểm tra thông tin bắt buộc
-    if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập tên cửa hàng.',
-      });
-    }
-
-    // 3. Kiểm tra xem chủ quán đã có cửa hàng chưa (mỗi chủ 1 cửa hàng chính)
+    // 2. Kiểm tra xem chủ quán đã có cửa hàng chưa (mỗi chủ 1 cửa hàng chính)
     const existingStore = await Store.findOne({ ownerId: userId });
     if (existingStore) {
       return res.status(400).json({
@@ -40,7 +32,7 @@ export const createStore = async (req, res) => {
       });
     }
 
-    // 4. Tạo cửa hàng
+    // 3. Tạo cửa hàng
     const newStore = await Store.create({
       name: name.trim(),
       address: address ? address.trim() : '',
@@ -242,21 +234,7 @@ export const joinByCode = async (req, res) => {
     const { inviteCode, employmentType } = req.body;
     const userId = req.user.id;
 
-    if (!inviteCode || !inviteCode.toString().trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập mã mời 6 chữ số.',
-      });
-    }
-
     const cleanCode = inviteCode.toString().trim();
-
-    if (!/^\d{6}$/.test(cleanCode)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mã mời không đúng định dạng (Mã mời phải gồm đúng 6 chữ số, ví dụ: 482915).',
-      });
-    }
 
     // 1. Tìm cửa hàng khớp mã mời
     const store = await Store.findOne({ 'inviteCode.code': cleanCode });

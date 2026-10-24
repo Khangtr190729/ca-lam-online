@@ -8,6 +8,13 @@ import {
   inviteById,
 } from '../controllers/storeController.js';
 import { protect } from '../middlewares/authMiddleware.js';
+import { validateBody } from '../middlewares/validateMiddleware.js';
+import {
+  createStoreSchema,
+  updateStoreSchema,
+  joinByCodeSchema,
+  inviteEmployeeSchema,
+} from '../validators/storeValidator.js';
 import memberRoutes from './memberRoutes.js';
 import shiftRoutes from './shiftRoutes.js';
 import { storeScheduleRouter } from './scheduleRoutes.js';
@@ -27,21 +34,21 @@ router.use('/:storeId/shifts', shiftRoutes);
 router.use('/:storeId/schedules', storeScheduleRouter);
 
 // 1. Tạo cửa hàng mới (ADMIN)
-router.post('/', createStore);
+router.post('/', validateBody(createStoreSchema), createStore);
 
 // 2. Lấy thông tin cửa hàng của tôi (ADMIN hoặc EMPLOYEE)
 router.get('/my-store', getMyStore);
 
 // 3. Cập nhật thông tin cửa hàng (ADMIN)
-router.put('/my-store', updateMyStore);
+router.put('/my-store', validateBody(updateStoreSchema), updateMyStore);
 
 // 4. Sinh mã mời 6 số ngẫu nhiên (ADMIN) - Hiệu lực 1h, vô hiệu mã cũ
 router.post('/generate-invite-code', generateInviteCode);
 
 // 5. Nhân viên nhập mã mời 6 số để gia nhập (EMPLOYEE)
-router.post('/join-by-code', joinByCode);
+router.post('/join-by-code', validateBody(joinByCodeSchema), joinByCode);
 
 // 6. Chủ quán mời trực tiếp nhân viên qua ID hoặc Email (ADMIN)
-router.post('/invite-by-id', inviteById);
+router.post('/invite-by-id', validateBody(inviteEmployeeSchema), inviteById);
 
 export default router;
