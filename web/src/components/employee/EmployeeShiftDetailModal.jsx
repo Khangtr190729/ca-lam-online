@@ -28,7 +28,7 @@ export const EmployeeShiftDetailModal = ({ activeShiftDetail, onClose, storeName
             </button>
           </div>
           <h3 className="text-base font-extrabold text-slate-900 mt-1">
-            {activeShiftDetail.shift?.name}
+            {activeShiftDetail.shift?.name || activeShiftDetail.shiftName || 'Ca làm việc'}
           </h3>
         </div>
 
@@ -41,8 +41,9 @@ export const EmployeeShiftDetailModal = ({ activeShiftDetail, onClose, storeName
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <span className="text-slate-500">Thời gian ca:</span>
             <span className="font-bold text-slate-800 font-mono">
-              {activeShiftDetail.shift?.startTime} — {activeShiftDetail.shift?.endTime} (
-              {activeShiftDetail.shift?.durationHours} giờ)
+              {activeShiftDetail.shift?.startTime || activeShiftDetail.startTime} —{' '}
+              {activeShiftDetail.shift?.endTime || activeShiftDetail.endTime} (
+              {activeShiftDetail.shift?.durationHours || activeShiftDetail.hours || 0} giờ)
             </span>
           </div>
 

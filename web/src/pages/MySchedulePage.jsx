@@ -606,12 +606,14 @@ export const MySchedulePage = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-extrabold text-slate-900">
-                          {nextUpcomingShift.shift?.name || 'Ca làm việc'}
+                          {nextUpcomingShift.shift?.name || nextUpcomingShift.shiftName || 'Ca làm việc'}
                         </h4>
                         <p className="text-xs text-slate-600 font-mono flex items-center gap-1 mt-0.5">
                           <Clock className="w-3 h-3 text-[#EA701B]" />
                           <span>
-                            {nextUpcomingShift.shift?.startTime} — {nextUpcomingShift.shift?.endTime}
+                            {(nextUpcomingShift.shift?.startTime || nextUpcomingShift.startTime) && (nextUpcomingShift.shift?.endTime || nextUpcomingShift.endTime)
+                              ? `${nextUpcomingShift.shift?.startTime || nextUpcomingShift.startTime} — ${nextUpcomingShift.shift?.endTime || nextUpcomingShift.endTime} (${nextUpcomingShift.shift?.durationHours || nextUpcomingShift.hours}h)`
+                              : '-'}
                           </span>
                         </p>
                       </div>

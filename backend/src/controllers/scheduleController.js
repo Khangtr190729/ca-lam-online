@@ -347,7 +347,8 @@ export const getMySchedule = async (req, res) => {
       'assignments.userId': userId,
     })
       .populate('storeId', 'name address')
-      .populate('assignments.shiftId', 'name startTime endTime durationHours color');
+      .populate('assignments.shiftId', 'name startTime endTime durationHours color peakLevel')
+      .populate('assignments.userId', 'fullName avatar');
 
     if (!schedule) {
       return res.status(200).json({
@@ -363,24 +364,54 @@ export const getMySchedule = async (req, res) => {
     }
 
     const myShifts = schedule.assignments
-      .filter((a) => a.userId.toString() === userId)
-      .map((a) => ({
-        assignmentId: a._id,
-        date: a.date,
-        dayOfWeek: a.dayOfWeek,
-        shiftName: a.shiftId ? a.shiftId.name : 'N/A',
-        startTime: a.shiftId ? a.shiftId.startTime : '',
-        endTime: a.shiftId ? a.shiftId.endTime : '',
-        hours: a.hours,
-        hourlyWage: a.hourlyWage,
-        totalPay: a.totalPay,
-        attendanceStatus: a.attendanceStatus || 'COMPLETED',
-        penaltyType: a.penaltyType || 'NONE',
-        deductedHours: a.deductedHours || 0,
-        deductedPay: a.deductedPay || 0,
-        missedReason: a.missedReason || '',
-        color: a.shiftId ? a.shiftId.color : '#3B82F6',
-      }));
+      .filter((a) => {
+        const uId = a.userId?._id ? a.userId._id.toString() : a.userId?.toString();
+        return uId === userId;
+      })
+      .map((a) => {
+        const sId = a.shiftId?._id ? a.shiftId._id.toString() : a.shiftId?.toString();
+        const coworkers = schedule.assignments
+          .filter((other) => {
+            const otherUId = other.userId?._id ? other.userId._id.toString() : other.userId?.toString();
+            const otherSId = other.shiftId?._id ? other.shiftId._id.toString() : other.shiftId?.toString();
+            return other.date === a.date && otherSId === sId && otherUId !== userId;
+          })
+          .map((other) => ({
+            _id: other.userId?._id || other.userId,
+            name: other.userId?.fullName || 'Đồng nghiệp',
+            avatar: other.userId?.avatar || '',
+          }));
+
+        return {
+          assignmentId: a._id,
+          date: a.date,
+          dayOfWeek: a.dayOfWeek,
+          shiftName: a.shiftId ? a.shiftId.name : 'N/A',
+          startTime: a.shiftId ? a.shiftId.startTime : '',
+          endTime: a.shiftId ? a.shiftId.endTime : '',
+          hours: a.hours,
+          hourlyWage: a.hourlyWage,
+          totalPay: a.totalPay,
+          attendanceStatus: a.attendanceStatus || 'COMPLETED',
+          penaltyType: a.penaltyType || 'NONE',
+          deductedHours: a.deductedHours || 0,
+          deductedPay: a.deductedPay || 0,
+          missedReason: a.missedReason || '',
+          color: a.shiftId ? a.shiftId.color : '#3B82F6',
+          coworkers,
+          shift: a.shiftId
+            ? {
+                _id: a.shiftId._id,
+                name: a.shiftId.name,
+                startTime: a.shiftId.startTime,
+                endTime: a.shiftId.endTime,
+                durationHours: a.hours || a.shiftId.durationHours,
+                color: a.shiftId.color,
+                peakLevel: a.shiftId.peakLevel || 1,
+              }
+            : null,
+        };
+      });
 
     const totalHours = myShifts.reduce((acc, cur) => {
       if (cur.attendanceStatus === 'MISSED') return acc;
