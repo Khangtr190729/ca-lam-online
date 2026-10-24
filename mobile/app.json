@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Ca Làm Online",
+    "slug": "ca-lam-online-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF7F0"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF7F0"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
