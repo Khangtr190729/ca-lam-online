@@ -161,6 +161,7 @@ export const ScheduleTimetableGrid = ({
                                   a.userObj || { name: 'Nhân viên' };
                                 const conflictShift = getAssignmentConflict(a);
                                 const isMissed = a.attendanceStatus === 'MISSED';
+                                const isPartial = a.attendanceStatus === 'PARTIAL';
 
                                 return (
                                   <div
@@ -168,6 +169,8 @@ export const ScheduleTimetableGrid = ({
                                     className={`flex items-center justify-between gap-1 px-1.5 py-1 rounded-lg border text-xs transition ${
                                       isMissed
                                         ? 'bg-rose-50/80 border-rose-200 text-rose-800'
+                                        : isPartial
+                                        ? 'bg-amber-50/90 border-amber-300 text-amber-900'
                                         : conflictShift
                                         ? 'bg-red-100/80 border-red-300 text-red-900 font-bold'
                                         : isPassed
@@ -176,7 +179,9 @@ export const ScheduleTimetableGrid = ({
                                     }`}
                                     title={
                                       isMissed
-                                        ? `Vắng mặt / Không hoàn thành (Đã trừ lương)${a.missedReason ? ': ' + a.missedReason : ''}`
+                                        ? `Vắng mặt / Không hoàn thành (Trừ cả ca)${a.missedReason ? ': ' + a.missedReason : ''}`
+                                        : isPartial
+                                        ? `Chưa hoàn thành tốt: Trừ -${a.deductedPay ? a.deductedPay.toLocaleString('vi-VN') + 'đ' : ''} (${a.deductedHours ? a.deductedHours + 'h' : ''})${a.missedReason ? ' — ' + a.missedReason : ''}`
                                         : undefined
                                     }
                                   >
@@ -185,6 +190,8 @@ export const ScheduleTimetableGrid = ({
                                         className={`w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center shrink-0 ${
                                           isMissed
                                             ? 'bg-rose-500'
+                                            : isPartial
+                                            ? 'bg-amber-500'
                                             : conflictShift
                                             ? 'bg-red-600'
                                             : isPassed
@@ -196,7 +203,11 @@ export const ScheduleTimetableGrid = ({
                                       </div>
                                       <span
                                         className={`truncate font-semibold text-[11px] leading-tight ${
-                                          isMissed ? 'line-through text-slate-400' : ''
+                                          isMissed
+                                            ? 'line-through text-slate-400'
+                                            : isPartial
+                                            ? 'text-amber-950 font-bold'
+                                            : ''
                                         }`}
                                       >
                                         {assignedUser.name}
@@ -206,6 +217,15 @@ export const ScheduleTimetableGrid = ({
                                     {isMissed && (
                                       <span className="shrink-0 px-1 py-0.2 rounded bg-rose-200/80 text-rose-800 text-[9px] font-bold">
                                         Vắng
+                                      </span>
+                                    )}
+
+                                    {isPartial && (
+                                      <span
+                                        className="shrink-0 px-1 py-0.2 rounded bg-amber-200 text-amber-900 text-[9px] font-extrabold"
+                                        title={`Trừ -${a.deductedPay ? a.deductedPay.toLocaleString('vi-VN') + 'đ' : ''}`}
+                                      >
+                                        {a.deductedHours ? `-${a.deductedHours}h` : 'Trừ lương'}
                                       </span>
                                     )}
 

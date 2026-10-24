@@ -118,8 +118,8 @@ export const DashboardPage = () => {
             // Không tính tiền cho các ca bị đánh dấu Không hoàn thành (MISSED)
             if (a.attendanceStatus === 'MISSED') return;
 
-            if (typeof a.totalPay === 'number' && a.totalPay > 0) {
-              totalPayroll += a.totalPay;
+            if (typeof a.totalPay === 'number') {
+              totalPayroll += Math.max(0, a.totalPay);
             } else {
               const sId = String(
                 typeof a.shiftId === 'object' && a.shiftId !== null ? a.shiftId._id : (a.shiftId || '')
@@ -133,7 +133,12 @@ export const DashboardPage = () => {
               );
               const hours = a.hours || shiftObj?.durationHours || 4;
               const wage = a.hourlyWage || memberObj?.hourlyWage || 20000;
-              totalPayroll += hours * wage;
+              const fullPay = hours * wage;
+              if (a.attendanceStatus === 'PARTIAL') {
+                totalPayroll += Math.max(0, fullPay - (a.deductedPay || 0));
+              } else {
+                totalPayroll += fullPay;
+              }
             }
           });
         }

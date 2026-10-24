@@ -19,6 +19,7 @@ import {
   formatDateToISO,
   getWeekNumberAndYear,
   checkShiftOverlap,
+  formatVND,
 } from '../utils/formatters';
 
 import { ScheduleTimetableGrid } from '../components/schedules/ScheduleTimetableGrid';
@@ -194,6 +195,12 @@ export const ScheduleManagementPage = () => {
             dayOfWeek: a.dayOfWeek,
             shiftId: sId,
             userId: uId,
+            hours: a.hours,
+            hourlyWage: a.hourlyWage,
+            totalPay: a.totalPay,
+            penaltyType: a.penaltyType || 'NONE',
+            deductedHours: a.deductedHours || 0,
+            deductedPay: a.deductedPay || 0,
             attendanceStatus: a.attendanceStatus || 'COMPLETED',
             missedReason: a.missedReason || '',
             evaluatedAt: a.evaluatedAt || null,
@@ -521,6 +528,10 @@ export const ScheduleManagementPage = () => {
             shiftId: getShiftId(a.shiftId),
             userId: getUserId(a.userId),
             attendanceStatus: a.attendanceStatus || 'COMPLETED',
+            penaltyType: a.penaltyType || 'NONE',
+            deductedHours: a.deductedHours || 0,
+            deductedPay: a.deductedPay || 0,
+            totalPay: a.totalPay,
             missedReason: a.missedReason || '',
           };
         }),
@@ -589,6 +600,10 @@ export const ScheduleManagementPage = () => {
             shiftId: getShiftId(a.shiftId),
             userId: getUserId(a.userId),
             attendanceStatus: a.attendanceStatus || 'COMPLETED',
+            penaltyType: a.penaltyType || 'NONE',
+            deductedHours: a.deductedHours || 0,
+            deductedPay: a.deductedPay || 0,
+            totalPay: a.totalPay,
             missedReason: a.missedReason || '',
             hourlyWage: a.hourlyWage,
           };
@@ -611,6 +626,12 @@ export const ScheduleManagementPage = () => {
             dayOfWeek: a.dayOfWeek,
             shiftId: sId,
             userId: uId,
+            hours: a.hours,
+            hourlyWage: a.hourlyWage,
+            totalPay: a.totalPay,
+            penaltyType: a.penaltyType || 'NONE',
+            deductedHours: a.deductedHours || 0,
+            deductedPay: a.deductedPay || 0,
             attendanceStatus: a.attendanceStatus || 'COMPLETED',
             missedReason: a.missedReason || '',
             evaluatedAt: a.evaluatedAt || null,
@@ -656,6 +677,10 @@ export const ScheduleManagementPage = () => {
             shiftId: getShiftId(a.shiftId),
             userId: getUserId(a.userId),
             attendanceStatus: a.attendanceStatus || 'COMPLETED',
+            penaltyType: a.penaltyType || 'NONE',
+            deductedHours: a.deductedHours || 0,
+            deductedPay: a.deductedPay || 0,
+            totalPay: a.totalPay,
             missedReason: a.missedReason || '',
           };
         }),
@@ -677,7 +702,17 @@ export const ScheduleManagementPage = () => {
   };
 
   // Đánh giá ca làm việc (Đánh dấu không hoàn thành / Khôi phục ca)
-  const handleEvaluateShift = async ({ date, shiftId, userId, attendanceStatus, missedReason }) => {
+  // Đánh giá ca làm việc (Đánh dấu không hoàn thành / Chưa hoàn thành tốt / Khôi phục ca)
+  const handleEvaluateShift = async ({
+    date,
+    shiftId,
+    userId,
+    attendanceStatus,
+    missedReason,
+    deductedHours = 0,
+    deductedPay = 0,
+    penaltyType = 'HOURS',
+  }) => {
     if (!store?._id) return;
     try {
       setSaving(true);
@@ -691,6 +726,9 @@ export const ScheduleManagementPage = () => {
         userId: getUserId(userId),
         attendanceStatus,
         missedReason: missedReason || '',
+        deductedHours,
+        deductedPay,
+        penaltyType,
       });
 
       if (res.success) {
@@ -701,10 +739,21 @@ export const ScheduleManagementPage = () => {
               getShiftId(a.shiftId) === getShiftId(shiftId) &&
               getUserId(a.userId) === getUserId(userId)
             ) {
+              const fullHours = a.hours || 4;
+              const wage = a.hourlyWage || 20000;
+              const fullPay = Math.round(fullHours * wage);
+              let totalPay = fullPay;
+              if (attendanceStatus === 'MISSED') totalPay = 0;
+              else if (attendanceStatus === 'PARTIAL') totalPay = Math.max(0, fullPay - deductedPay);
+
               return {
                 ...a,
                 attendanceStatus,
-                missedReason: attendanceStatus === 'MISSED' ? (missedReason || '') : '',
+                penaltyType,
+                deductedHours,
+                deductedPay,
+                totalPay,
+                missedReason: missedReason || '',
                 evaluatedAt: new Date().toISOString(),
                 evaluatedBy: user ? { _id: user._id, fullName: user.fullName || user.name } : null,
               };
@@ -717,7 +766,9 @@ export const ScheduleManagementPage = () => {
           type: 'success',
           message:
             attendanceStatus === 'MISSED'
-              ? `Đã đánh dấu nhân viên không hoàn thành ca và gửi email thông báo trừ tiền lương!`
+              ? `Đã đánh dấu nhân viên không hoàn thành ca và gửi email thông báo trừ toàn bộ lương ca!`
+              : attendanceStatus === 'PARTIAL'
+              ? `Đã ghi nhận chưa hoàn thành tốt và trừ ${formatVND(deductedPay)} lương ca của nhân viên!`
               : `Đã khôi phục ca làm việc thành hoàn thành và cộng lại lương cho nhân viên!`,
         });
       }
@@ -732,7 +783,7 @@ export const ScheduleManagementPage = () => {
   };
 
   // Weekly Payroll Summary calculation
-  // Trừ ca không hoàn thành (attendanceStatus === 'MISSED') ra khỏi tổng lương
+  // Trừ ca không hoàn thành (MISSED) và trừ một phần lương ca chưa tốt (PARTIAL)
   const payrollSummary = useMemo(() => {
     const employeeMap = {};
     members.forEach((m) => {
@@ -744,6 +795,7 @@ export const ScheduleManagementPage = () => {
         totalHours: 0,
         totalShifts: 0,
         completedShifts: 0,
+        partialShifts: 0,
         missedShifts: 0,
         totalWage: 0,
       };
@@ -753,17 +805,20 @@ export const ScheduleManagementPage = () => {
       const uId = getUserId(a.userId);
       const sId = getShiftId(a.shiftId);
       const shift = shifts.find((s) => getShiftId(s._id) === sId) || a.shiftObj;
-      const hours = shift?.durationHours || 4;
+      const hours = a.hours || shift?.durationHours || 4;
+      const wage = a.hourlyWage || employeeMap[uId]?.hourlyWage || 20000;
+      const fullPay = Math.round(hours * wage);
 
       if (!employeeMap[uId]) {
         const uName = a.userObj?.name || 'Nhân viên';
         employeeMap[uId] = {
           name: uName,
           email: '',
-          hourlyWage: 20000,
+          hourlyWage: wage,
           totalHours: 0,
           totalShifts: 0,
           completedShifts: 0,
+          partialShifts: 0,
           missedShifts: 0,
           totalWage: 0,
         };
@@ -771,12 +826,20 @@ export const ScheduleManagementPage = () => {
 
       employeeMap[uId].totalShifts += 1;
 
-      // Nếu không hoàn thành (MISSED) -> Trừ ra khỏi tổng lương và giờ làm
       if (a.attendanceStatus === 'MISSED') {
         employeeMap[uId].missedShifts += 1;
+      } else if (a.attendanceStatus === 'PARTIAL') {
+        employeeMap[uId].partialShifts += 1;
+        employeeMap[uId].completedShifts += 1;
+        const effectiveHours = Math.max(0, hours - (a.deductedHours || 0));
+        employeeMap[uId].totalHours += effectiveHours;
+        const shiftPay = a.totalPay !== undefined ? a.totalPay : Math.max(0, fullPay - (a.deductedPay || 0));
+        employeeMap[uId].totalWage += shiftPay;
       } else {
         employeeMap[uId].completedShifts += 1;
         employeeMap[uId].totalHours += hours;
+        const shiftPay = a.totalPay !== undefined ? a.totalPay : fullPay;
+        employeeMap[uId].totalWage += shiftPay;
       }
     });
 
@@ -784,15 +847,15 @@ export const ScheduleManagementPage = () => {
     let storeTotalHours = 0;
     let storeTotalShifts = assignments.length;
     let storeTotalMissedShifts = 0;
+    let storeTotalPartialShifts = 0;
 
     const list = Object.values(employeeMap)
       .filter((e) => e.totalShifts > 0)
       .map((e) => {
-        const wage = e.totalHours * e.hourlyWage;
-        e.totalWage = wage;
-        storeTotalPayroll += wage;
+        storeTotalPayroll += e.totalWage;
         storeTotalHours += e.totalHours;
         storeTotalMissedShifts += e.missedShifts;
+        storeTotalPartialShifts += e.partialShifts;
         return e;
       });
 
@@ -802,6 +865,7 @@ export const ScheduleManagementPage = () => {
       storeTotalHours,
       storeTotalShifts,
       storeTotalMissedShifts,
+      storeTotalPartialShifts,
     };
   }, [members, assignments, shifts]);
 

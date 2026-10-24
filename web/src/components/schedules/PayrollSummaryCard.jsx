@@ -4,6 +4,7 @@ import { formatVND } from '../../utils/formatters';
 
 export const PayrollSummaryCard = ({ payrollSummary }) => {
   const hasMissedShifts = (payrollSummary.storeTotalMissedShifts || 0) > 0;
+  const hasPartialShifts = (payrollSummary.storeTotalPartialShifts || 0) > 0;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-4">
@@ -15,7 +16,7 @@ export const PayrollSummaryCard = ({ payrollSummary }) => {
           <div>
             <h3 className="text-sm font-bold text-slate-900">Dự toán bảng lương theo ca (Tuần này)</h3>
             <p className="text-xs text-slate-500">
-              Tính toán dựa trên số ca hoàn thành × số giờ ca × mức lương từng nhân viên (đã trừ ca không hoàn thành)
+              Tính toán dựa trên ca làm việc thực tế (đã khấu trừ ca vắng mặt và ca vi phạm/đi trễ/về sớm)
             </p>
           </div>
         </div>
@@ -23,11 +24,16 @@ export const PayrollSummaryCard = ({ payrollSummary }) => {
         <div className="flex items-center gap-6 text-sm flex-wrap">
           <div>
             <span className="text-xs text-slate-400 block">Tổng ca phân công:</span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-bold text-slate-800 font-mono">{payrollSummary.storeTotalShifts} ca</span>
               {hasMissedShifts && (
                 <span className="px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 text-[10px] font-bold">
                   Trừ {payrollSummary.storeTotalMissedShifts} ca vắng
+                </span>
+              )}
+              {hasPartialShifts && (
+                <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold">
+                  {payrollSummary.storeTotalPartialShifts} ca trừ 1 phần
                 </span>
               )}
             </div>
@@ -56,6 +62,7 @@ export const PayrollSummaryCard = ({ payrollSummary }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {payrollSummary.employees.map((emp) => {
             const hasEmpMissed = (emp.missedShifts || 0) > 0;
+            const hasEmpPartial = (emp.partialShifts || 0) > 0;
 
             return (
               <div
@@ -67,11 +74,16 @@ export const PayrollSummaryCard = ({ payrollSummary }) => {
                     {emp.name ? emp.name.charAt(0).toUpperCase() : 'U'}
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="text-xs font-bold text-slate-800 truncate">{emp.name}</p>
                       {hasEmpMissed && (
                         <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[9px] font-bold shrink-0">
-                          Trừ {emp.missedShifts} ca
+                          Trừ {emp.missedShifts} ca vắng
+                        </span>
+                      )}
+                      {hasEmpPartial && (
+                        <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold shrink-0">
+                          {emp.partialShifts} ca vi phạm
                         </span>
                       )}
                     </div>
