@@ -99,13 +99,6 @@ export const updateMemberWage = async (req, res) => {
     const { hourlyWage } = req.body;
     const userId = req.user.id;
 
-    if (hourlyWage === undefined || isNaN(Number(hourlyWage)) || Number(hourlyWage) < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mức lương theo giờ phải là một số hợp lệ lớn hơn hoặc bằng 0 (ví dụ: 20000 = 20.000 VNĐ/h).',
-      });
-    }
-
     const access = await verifyStoreAccess(storeId, userId);
     if (access.error) {
       return res.status(404).json({ success: false, message: access.error });
@@ -161,13 +154,6 @@ export const updateMemberRole = async (req, res) => {
     const { storeId, memberId } = req.params;
     const { roleInStore } = req.body;
     const userId = req.user.id;
-
-    if (!['MANAGER', 'EMPLOYEE'].includes(roleInStore)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vai trò trong cửa hàng chỉ có thể là "MANAGER" hoặc "EMPLOYEE".',
-      });
-    }
 
     const access = await verifyStoreAccess(storeId, userId);
     if (access.error) {
@@ -235,13 +221,6 @@ export const updateMemberEmploymentType = async (req, res) => {
     const { storeId, memberId } = req.params;
     const { employmentType } = req.body;
     const userId = req.user.id;
-
-    if (!['FULL_TIME', 'PART_TIME'].includes(employmentType)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Hình thức làm việc phải là "FULL_TIME" (Chính thức) hoặc "PART_TIME" (Bán thời gian).',
-      });
-    }
 
     const access = await verifyStoreAccess(storeId, userId);
     if (access.error) {
