@@ -59,8 +59,8 @@ Hệ thống tuân thủ nguyên tắc phân định trách nhiệm rõ ràng:
 - **`controllers/`:** Tiếp nhận request từ client, trích xuất tham số, gọi services xử lý và trả về HTTP response chuẩn hóa.
 - **`services/`:** Nơi thực thi logic nghiệp vụ cốt lõi (Business Logic), tính toán, và tương tác với models.
 - **`models/`:** Định nghĩa schema và model tương tác với MongoDB Atlas qua Mongoose.
-- **`middlewares/`:** Các hàm chặn giữa request: kiểm tra JWT, xác thực quyền hạn (RBAC), bắt và chuẩn hóa lỗi (Error Handling).
-- **`validators/`:** Các schema kiểm tra tính hợp lệ của request payload bằng thư viện `Zod`.
+- **`middlewares/`:** Các hàm chặn giữa request: kiểm tra JWT (`authMiddleware`), kiểm thực & làm sạch dữ liệu đầu vào (`validateMiddleware`), và hệ thống kiểm soát tần suất request đa tầng (`rateLimiter/`).
+- **`validators/`:** Các schema kiểm tra tính hợp lệ của request payload bằng thư viện `Zod` (auth, user, store, member, shift, schedule, common).
 - **`config/`:** Quản lý cấu hình môi trường, thiết lập kết nối cơ sở dữ liệu MongoDB Atlas.
 
 ---
@@ -82,7 +82,8 @@ Hệ thống tuân thủ nguyên tắc phân định trách nhiệm rõ ràng:
   - `Node.js` & `Express.js`: Hệ sinh thái máy chủ REST API phổ biến, linh hoạt và quen thuộc.
   - `MongoDB Atlas` & `Mongoose`: Cơ sở dữ liệu NoSQL linh hoạt, phù hợp với mô hình dữ liệu ca làm việc đa dạng.
   - `JWT (JSON Web Token)` & `bcrypt`: Cơ chế xác thực không trạng thái (stateless) và mã hóa mật khẩu an toàn.
-  - `Zod`: Thư viện khai báo và kiểm thực schema dữ liệu đầu vào chặt chẽ.
+  - `Zod`: Thư viện khai báo và kiểm thực schema dữ liệu đầu vào chặt chẽ, loại bỏ field thừa và chống NoSQL injection.
+  - `express-rate-limit`: Giới hạn tần suất gọi API đa tầng nhằm ngăn chặn tấn công Brute-force mật khẩu/OTP và chống nghẽn CPU/DoS.
 - **Giao Tiếp Client-Server:**
   - `Axios`: Client HTTP ổn định cho cả Web và Mobile với cơ chế interceptor xử lý token thuận tiện.
 

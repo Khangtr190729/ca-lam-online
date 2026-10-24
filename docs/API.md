@@ -10,8 +10,29 @@ Tài liệu này tổng hợp toàn bộ các RESTful API hiện có của hệ 
   ```http
   Authorization: Bearer <your_jwt_token>
   ```
+- **Kiểm thực dữ liệu đầu vào (Zod Validation):** Tất cả request payload được kiểm thực tập trung qua Zod. Nếu dữ liệu không hợp lệ, server trả về mã `HTTP 400 Bad Request` kèm thông báo tiếng Việt chi tiết và mảng `errors`.
+- **Giới hạn tần suất gọi (Rate Limiting - HTTP 429):**
+  * Toàn bộ hệ thống áp dụng `express-rate-limit` chống Brute-force và DoS.
+  * Khi vượt ngưỡng, server phản hồi mã `HTTP 429 Too Many Requests`:
+    ```json
+    {
+      "success": false,
+      "message": "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau ít phút.",
+      "retryAfterMinutes": 15
+    }
+    ```
+  * **Các hạn mức cụ thể:**
+    | Phạm vi / Nhóm API | Hạn mức cho phép | Mục đích bảo vệ |
+    |---|---|---|
+    | **Toàn bộ hệ thống (`/api/*`)** | 300 requests / 15 phút / IP | Chống quét và tấn công cào dữ liệu |
+    | **Đăng ký & Đăng nhập (`/api/auth/login`, `/register`)** | 10 lần / 15 phút / IP | Chống vét cạn (Brute-force) mật khẩu |
+    | **Gửi OTP Email (`/api/auth/forgot-password`)** | 3 lần / 15 phút / IP | Chống spam email & bảo vệ quota Gmail |
+    | **Xác thực OTP (`/verify-reset-otp`, `/reset-password`)** | 5 lần / 15 phút / IP | Chống dò quét mã xác thực 6 chữ số |
+    | **Nhập mã mời vào quán (`/api/stores/join-by-code`)** | 5 lần / 15 phút / IP | Chống dò quét mã mời cửa hàng 6 số |
+    | **Tự động xếp ca (`/api/stores/:storeId/schedules/auto-generate`)** | 10 lần / 5 phút / IP | Chống nghẽn CPU Event Loop |
+
 - **Cấu trúc phản hồi chung:**
-  * Thành công: `{ "success": true, "data": ... }`
+  * Thành công: `{ "success": true, "data": ... }` hoặc `{ "success": true, "message": "..." }`
   * Thất bại: `{ "success": false, "message": "Thông báo lỗi tiếng Việt dễ hiểu" }`
 
 ---
@@ -20,11 +41,11 @@ Tài liệu này tổng hợp toàn bộ các RESTful API hiện có của hệ 
 
 | Method | Endpoint | Yêu cầu Token | Quyền hạn | Chức năng |
 |---|---|:---:|---|---|
-| `POST` | `/api/auth/register` | ❌ | Công khai | Đăng ký tài khoản (Chỉ chọn `ADMIN` hoặc `EMPLOYEE`, bắt buộc: email, password, fullName, gender, age) |
-| `POST` | `/api/auth/login` | ❌ | Công khai | Đăng nhập tài khoản, trả về JWT Token |
-| `POST` | `/api/auth/forgot-password` | ❌ | Công khai | **Yêu cầu gửi mã OTP 6 số qua Email** để đặt lại mật khẩu |
-| `POST` | `/api/auth/verify-reset-otp` | ❌ | Công khai | **Xác thực mã OTP 6 số** (kiểm tra khớp mã và còn trong 10 phút) |
-| `POST` | `/api/auth/reset-password` | ❌ | Công khai | **Đổi mật khẩu mới bằng mã OTP 6 số** |
+| `POST` | `/api/auth/register` | ❌ | Công khai *(10 req/15p)* | Đăng ký tài khoản (Chỉ chọn `ADMIN` hoặc `EMPLOYEE`, bắt buộc: email, password, fullName, gender, age) |
+| `POST` | `/api/auth/login` | ❌ | Công khai *(10 req/15p)* | Đăng nhập tài khoản, trả về JWT Token |
+| `POST` | `/api/auth/forgot-password` | ❌ | Công khai *(3 req/15p)* | **Yêu cầu gửi mã OTP 6 số qua Email** để đặt lại mật khẩu |
+| `POST` | `/api/auth/verify-reset-otp` | ❌ | Công khai *(5 req/15p)* | **Xác thực mã OTP 6 số** (kiểm tra khớp mã và còn trong 10 phút) |
+| `POST` | `/api/auth/reset-password` | ❌ | Công khai *(5 req/15p)* | **Đổi mật khẩu mới bằng mã OTP 6 số** |
 | `GET` | `/api/auth/me` | ✅ | Đã đăng nhập | Lấy thông tin cá nhân của tài khoản đang đăng nhập |
 | `PUT` | `/api/users/profile` | ✅ | Đã đăng nhập | Cập nhật thông tin cá nhân (họ tên, giới tính, tuổi, avatar) |
 | `PUT` | `/api/users/change-password` | ✅ | Đã đăng nhập | Đổi mật khẩu tài khoản khi đã đăng nhập |
@@ -39,7 +60,7 @@ Tài liệu này tổng hợp toàn bộ các RESTful API hiện có của hệ 
 | `GET` | `/api/stores/my-store` | ✅ | Mọi thành viên | Xem thông tin cửa hàng hiện tại (Chủ xem quán mình sở hữu, Nhân viên xem quán mình đang làm) |
 | `PUT` | `/api/stores/my-store` | ✅ | `ADMIN` (Chủ) | Cập nhật thông tin cửa hàng (Tên, địa chỉ) |
 | `POST` | `/api/stores/generate-invite-code` | ✅ | `ADMIN` (Chủ) | **Bấm sinh Mã Mời 6 số ngẫu nhiên** (hạn 1 giờ, tự động hủy mã cũ) |
-| `POST` | `/api/stores/join-by-code` | ✅ | `EMPLOYEE` | **Nhân viên nhập mã 6 số để gia nhập quán** |
+| `POST` | `/api/stores/join-by-code` | ✅ | `EMPLOYEE` *(5 req/15p)* | **Nhân viên nhập mã 6 số để gia nhập quán** |
 | `POST` | `/api/stores/invite-by-id` | ✅ | `ADMIN` (Chủ) | Mời trực tiếp nhân viên qua ID hoặc Email (Tự động gửi email thông báo) |
 
 ---
@@ -72,9 +93,11 @@ Tài liệu này tổng hợp toàn bộ các RESTful API hiện có của hệ 
 | Method | Endpoint | Yêu cầu Token | Quyền hạn | Chức năng |
 |---|---|:---:|---|---|
 | `GET` | `/api/stores/:storeId/schedules` | ✅ | Mọi thành viên quán | Lấy bảng lịch tuần theo tham số `?week=43&year=2026`, kèm bảng tổng hợp lương nhân viên |
+| `GET` | `/api/stores/:storeId/schedules/monthly-stats` | ✅ | Mọi thành viên quán | Thống kê số ca đã phân và dự toán chi phí lương cả tháng `?month=10&year=2026` |
 | `POST` | `/api/stores/:storeId/schedules/save-draft` | ✅ | `ADMIN` / `MANAGER` | **Lưu Bản Nháp (`DRAFT`)**: Xếp ca cho nhân viên (hoặc Quản lý tự xếp cho mình), tự động tính lương tuần |
-| `POST` | `/api/stores/:storeId/schedules/auto-generate` | ✅ | `ADMIN` / `MANAGER` | **Tự động xếp lịch thông minh**: Tự động phân bổ nhân sự theo mức độ sao cao điểm của từng ca (`AUTO_BY_STARS`) và quy mô nhân sự quán |
+| `POST` | `/api/stores/:storeId/schedules/auto-generate` | ✅ | `ADMIN` / `MANAGER` *(10 req/5p)* | **Tự động xếp lịch thông minh**: Tự động phân bổ nhân sự theo mức độ sao cao điểm của từng ca (`AUTO_BY_STARS`) và quy mô nhân sự quán |
 | `POST` | `/api/stores/:storeId/schedules/publish` | ✅ | `ADMIN` / `MANAGER` | **Xác nhận Xuất bản (`PUBLISHED`)**: Chốt lịch tuần & **Tự động gửi Email** lịch trực kèm tiền lương đến từng nhân viên |
+| `PUT` | `/api/stores/:storeId/schedules/evaluate-shift` | ✅ | `ADMIN` / `MANAGER` | **Đánh giá ca làm việc đa cấp độ**: Hoàn thành (`COMPLETED`), Chưa tốt (`PARTIAL` - trừ giờ/tiền), Vắng (`MISSED` - trừ cả ca) kèm gửi email minh bạch |
 | `GET` | `/api/schedules/my-schedule` | ✅ | `EMPLOYEE` | **Nhân viên xem lịch cá nhân tuần này**: Xem các ca trực của riêng mình và tổng số tiền lương nhận được |
 
 ---
@@ -90,6 +113,19 @@ Tài liệu này tổng hợp toàn bộ các RESTful API hiện có của hệ 
   "gender": "Nam",
   "age": 28,
   "systemRole": "ADMIN"
+}
+```
+
+### 🔹 Đánh giá ca làm việc (`PUT /api/stores/:storeId/schedules/evaluate-shift`)
+```json
+{
+  "date": "2026-10-24",
+  "shiftId": "6718d7931c84cb123456789a",
+  "userId": "6718d7521c84cb123456789b",
+  "attendanceStatus": "PARTIAL",
+  "missedReason": "Đi làm muộn 30 phút do sự cố kẹt xe",
+  "deductedHours": 0.5,
+  "penaltyType": "HOURS"
 }
 ```
 

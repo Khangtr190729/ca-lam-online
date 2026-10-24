@@ -7,7 +7,7 @@
 ## 1. Hiện Trạng & Tiến Độ Dự Án
 
 Hệ thống đã hoàn thiện toàn diện các phân hệ cốt lõi:
-- [x] **Backend REST API (`backend/`):** Hoạt động hoàn chỉnh với Express 5, MongoDB Atlas (Mongoose 9), bảo mật JWT, mã hóa bcryptjs, kiểm thực dữ liệu Zod và dịch vụ gửi mail tự động Nodemailer.
+- [x] **Backend REST API (`backend/`):** Hoạt động hoàn chỉnh với Express 5, MongoDB Atlas (Mongoose 9), bảo mật JWT, mã hóa bcryptjs, kiểm thực dữ liệu Zod Schema Validation, hệ thống Rate Limiting đa tầng (express-rate-limit) chống Brute-force/DoS và dịch vụ gửi mail tự động Nodemailer.
 - [x] **Frontend Web App (`web/`):** Ứng dụng web SPA hoàn chỉnh trên React 19 & Vite, Tailwind CSS v4, giao diện responsive, tích hợp hệ thống micro-interactions tăng tốc phần cứng GPU (60–120 FPS).
 - [x] **Mobile App (`mobile/`):** Cấu trúc ứng dụng di động React Native & Expo SDK 58, tích hợp React Navigation và SecureStore, sẵn sàng mở rộng tra cứu lịch làm việc trên thiết bị cầm tay.
 
@@ -75,6 +75,18 @@ Hệ thống quản lý chặt chẽ 3 vai trò người dùng trong cửa hàng
 - Hệ thống hiệu ứng vi mô (micro-interactions): phản hồi lực nhấn nút (`.btn-press`), nâng thẻ khi hover (`.hover-lift`), mở bung modal dialog tự nhiên (`.animate-modal-pop`), nền mờ kính mờ toàn màn hình (`backdrop-blur-sm`).
 - **Tăng tốc phần cứng GPU:** 100% chuyển động chỉ can thiệp vào `transform` và `opacity`, không gây Layout Thrashing/Reflow, tôn trọng chuẩn trợ năng `@media (prefers-reduced-motion)`.
 
+### 3.7. An Toàn & Bảo Mật Hệ Thống (Zod Validation & Rate Limiting)
+- **Kiểm thực dữ liệu đầu vào tập trung (Zod Validation Middleware):**
+  - Chặn request sai định dạng ngay tại tầng middleware trước khi chạm vào controller.
+  - Làm sạch dữ liệu (`trim()`, ép kiểu số, chuẩn hóa chữ hoa/thường), tự động loại bỏ các trường thừa/lạ chống tấn công NoSQL injection.
+  - Cung cấp 7 bộ schema hoàn chỉnh: `auth`, `user`, `store`, `member`, `shift`, `schedule`, `common`.
+- **Hệ thống Giới hạn tần suất đa tầng (Multi-tiered Rate Limiting):**
+  - **Global Limiter:** Tối đa 300 requests/15 phút cho mỗi IP toàn hệ thống.
+  - **Auth Limiter:** Tối đa 10 lần thử đăng nhập/đăng ký trong 15 phút (chống brute-force mật khẩu).
+  - **OTP & Email Limiter:** Tối đa 3 lần yêu cầu gửi OTP/15 phút (bảo vệ hạn ngạch Nodemailer/Gmail) và 5 lần thử sai mã 6 số (chống dò mã xác thực).
+  - **Store Invite Code Limiter:** Tối đa 5 lần thử nhập mã mời cửa hàng/15 phút (chống quét mã 6 số).
+  - **Auto-Schedule Limiter:** Tối đa 10 lần/5 phút (bảo vệ CPU event loop khi chạy thuật toán xếp ca phức tạp).
+
 ---
 
 ## 4. Công Nghệ Sử Dụng (Tech Stack)
@@ -83,8 +95,8 @@ Hệ thống quản lý chặt chẽ 3 vai trò người dùng trong cửa hàng
 - **Runtime:** Node.js (ES Modules)
 - **Framework:** Express.js 5
 - **Database:** MongoDB Atlas qua Mongoose 9
-- **Bảo mật & Xác thực:** JSON Web Tokens (JWT), bcryptjs
-- **Kiểm thực dữ liệu:** Zod Schema Validation
+- **Bảo mật & Giới hạn tần suất:** JSON Web Tokens (JWT), bcryptjs, `express-rate-limit` (Rate Limiting đa tầng)
+- **Kiểm thực dữ liệu:** Zod Schema Validation (Middleware kiểm tra & làm sạch payload)
 - **Gửi Email:** Nodemailer (tích hợp SMTP Gmail với HTML templates)
 - **Hỗ trợ phát triển:** Nodemon, Dotenv, CORS
 
@@ -120,11 +132,12 @@ ca-lam-online/
 │   ├── src/
 │   │   ├── config/            # Kết nối Database MongoDB Atlas
 │   │   ├── controllers/       # Tiếp nhận và xử lý HTTP request
-│   │   ├── middlewares/       # Middleware xác thực JWT, phân quyền role
+│   │   ├── middlewares/       # Middleware xác thực JWT, validateMiddleware
+│   │   │   └── rateLimiter/   # Modular rate limiters (global, auth, otp, store, schedule)
 │   │   ├── models/            # Schemas: User, Store, Shift, Member, Schedule
 │   │   ├── routes/            # Khai báo các API routes
 │   │   ├── services/          # Logic nghiệp vụ (emailService, scheduleService)
-│   │   └── validators/        # Zod validation schemas
+│   │   └── validators/        # 7 Zod validation schemas (auth, user, store, member, shift, schedule, common)
 │   ├── .env.example           # File mẫu cấu hình biến môi trường
 │   └── package.json
 ├── web/                       # Ứng dụng Frontend Web (Chủ quán & Quản lý & Nhân viên)
