@@ -29,69 +29,8 @@ export const register = async (req, res) => {
   try {
     const { email, password, fullName, gender, age, systemRole } = req.body;
 
-    // 1. Kiểm tra các trường bắt buộc và kiểu dữ liệu string chống NoSQL injection
-    if (!email || !password || !fullName || !gender || age === undefined || !systemRole) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng điền đầy đủ tất cả các trường: email, password, fullName, gender, age, systemRole.',
-      });
-    }
-
-    if (typeof email !== 'string' || typeof password !== 'string' || typeof fullName !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: 'Dữ liệu đầu vào không hợp lệ (phải là chuỗi ký tự hợp lệ).',
-      });
-    }
-
-    // 2. Kiểm tra định dạng Email hợp lệ bằng Regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const cleanEmail = email.trim().toLowerCase();
-    if (!emailRegex.test(cleanEmail)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Định dạng email không hợp lệ. Vui lòng nhập đúng định dạng (ví dụ: user@gmail.com).',
-      });
-    }
-
-    // 3. Kiểm tra vai trò đăng ký (Chỉ được chọn ADMIN hoặc EMPLOYEE, không được chọn MANAGER)
-    const allowedRoles = ['ADMIN', 'EMPLOYEE'];
-    if (!allowedRoles.includes(systemRole)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vai trò không hợp lệ. Bạn chỉ có thể đăng ký là "Chủ cửa hàng" (ADMIN) hoặc "Người đi làm" (EMPLOYEE).',
-      });
-    }
-
-    // 4. Kiểm tra độ tuổi hợp lệ (Từ 15 đến 100 tuổi)
-    const parsedAge = Number(age);
-    if (isNaN(parsedAge) || parsedAge < 15 || parsedAge > 100) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tuổi không hợp lệ (Độ tuổi làm việc hợp lệ từ 15 đến 100 tuổi).',
-      });
-    }
-
-    // 5. Kiểm tra giới tính (hỗ trợ cả có dấu và không dấu)
-    const validGenders = { Nam: 'Nam', Nữ: 'Nữ', Nu: 'Nữ', Khác: 'Khác', Khac: 'Khác' };
-    if (!validGenders[gender]) {
-      return res.status(400).json({
-        success: false,
-        message: 'Giới tính phải là một trong: Nam, Nữ, Khác.',
-      });
-    }
-    const normalizedGender = validGenders[gender];
-
-    // 6. Kiểm tra độ dài mật khẩu
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mật khẩu phải có tối thiểu 6 ký tự để đảm bảo an toàn.',
-      });
-    }
-
-    // 7. Kiểm tra email đã tồn tại hay chưa
-    const existingUser = await User.findOne({ email: cleanEmail });
+    // 1. Kiểm tra email đã tồn tại hay chưa
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -99,24 +38,24 @@ export const register = async (req, res) => {
       });
     }
 
-    // 8. Băm mật khẩu an toàn với bcrypt
+    // 2. Băm mật khẩu an toàn với bcrypt
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 9. Tạo user mới
+    // 3. Tạo user mới
     const newUser = await User.create({
-      email: cleanEmail,
+      email,
       password: hashedPassword,
-      fullName: fullName.trim(),
-      gender: normalizedGender,
-      age: parsedAge,
+      fullName,
+      gender,
+      age,
       systemRole,
     });
 
-    // 10. Tạo token đăng nhập
+    // 4. Tạo token đăng nhập
     const token = generateToken(newUser);
 
-    // 11. Trả về kết quả (loại bỏ mật khẩu)
+    // 5. Trả về kết quả (loại bỏ mật khẩu)
     return res.status(201).json({
       success: true,
       message: 'Đăng ký tài khoản thành công!',
@@ -149,18 +88,8 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 1. Kiểm tra đầu vào và kiểu dữ liệu string chống NoSQL injection
-    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập đầy đủ Email và Mật khẩu hợp lệ.',
-      });
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-
-    // 2. Tìm người dùng theo email
-    const user = await User.findOne({ email: cleanEmail });
+    // 1. Tìm người dùng theo email
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -168,7 +97,7 @@ export const login = async (req, res) => {
       });
     }
 
-    // 3. So khớp mật khẩu đã băm
+    // 2. So khớp mật khẩu đã băm
     const isPasswordMatch = await bcrypt.compare(password, user.password);
     if (!isPasswordMatch) {
       return res.status(401).json({
@@ -177,7 +106,7 @@ export const login = async (req, res) => {
       });
     }
 
-    // 4. Tạo token đăng nhập
+    // 3. Tạo token đăng nhập
     const token = generateToken(user);
 
     return res.status(200).json({
@@ -239,23 +168,8 @@ export const getMe = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp địa chỉ Email hợp lệ.',
-      });
-    }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanEmail)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Định dạng email không hợp lệ. Vui lòng kiểm tra lại.',
-      });
-    }
-
-    const user = await User.findOne({ email: cleanEmail });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -303,17 +217,8 @@ export const forgotPassword = async (req, res) => {
 export const verifyResetOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    if (!email || !otp || typeof email !== 'string' || typeof otp !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập đầy đủ Email và mã OTP 6 số.',
-      });
-    }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = otp.trim();
-
-    const user = await User.findOne({ email: cleanEmail });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -339,7 +244,7 @@ export const verifyResetOtp = async (req, res) => {
       });
     }
 
-    if (user.resetPasswordOtp.code !== cleanOtp) {
+    if (user.resetPasswordOtp.code !== otp) {
       return res.status(400).json({
         success: false,
         message: 'Mã xác thực OTP không chính xác. Vui lòng kiểm tra kỹ hộp thư email!',
@@ -367,31 +272,8 @@ export const verifyResetOtp = async (req, res) => {
 export const resetPasswordWithOtp = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
-    if (
-      !email ||
-      !otp ||
-      !newPassword ||
-      typeof email !== 'string' ||
-      typeof otp !== 'string' ||
-      typeof newPassword !== 'string'
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp đầy đủ: Email, mã OTP và Mật khẩu mới.',
-      });
-    }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mật khẩu mới phải có tối thiểu 6 ký tự để đảm bảo an toàn.',
-      });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = otp.trim();
-
-    const user = await User.findOne({ email: cleanEmail });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -417,7 +299,7 @@ export const resetPasswordWithOtp = async (req, res) => {
       });
     }
 
-    if (user.resetPasswordOtp.code !== cleanOtp) {
+    if (user.resetPasswordOtp.code !== otp) {
       return res.status(400).json({
         success: false,
         message: 'Mã xác thực OTP không chính xác. Không thể đổi mật khẩu.',
@@ -448,4 +330,3 @@ export const resetPasswordWithOtp = async (req, res) => {
     });
   }
 };
-
