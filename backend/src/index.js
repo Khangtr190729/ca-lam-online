@@ -6,6 +6,7 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import storeRoutes from './routes/storeRoutes.js';
 import { personalScheduleRouter } from './routes/scheduleRoutes.js';
+import { globalLimiter } from './middlewares/rateLimiter/globalLimiter.js';
 
 // Nạp cấu hình từ file .env
 dotenv.config();
@@ -13,12 +14,18 @@ dotenv.config();
 // Khởi tạo ứng dụng Express
 const app = express();
 
+// Tin tưởng reverse proxy khi deploy lên Render/Railway/Heroku/Vercel
+app.set('trust proxy', 1);
+
 // Kết nối cơ sở dữ liệu MongoDB
 connectDB();
 
 // Middlewares toàn cục
 app.use(cors());
 app.use(express.json());
+
+// Giới hạn tần suất toàn cục cho tất cả API /api/*
+app.use('/api', globalLimiter);
 
 // Routes chính
 app.use('/api/auth', authRoutes);
