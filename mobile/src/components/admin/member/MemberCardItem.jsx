@@ -9,13 +9,14 @@ export const MemberCardItem = ({
   onEdit,
   onDelete,
 }) => {
-  const isFullTime = member.roleInStore === 'FULL_TIME';
-  const name = member.userId?.fullName || 'Nhân viên';
-  const email = member.userId?.email || '';
+  const isFullTime = member.employmentType === 'FULL_TIME';
+  const isManager = member.roleInStore === 'MANAGER';
+  const name = member.userId?.fullName || member.fullName || 'Nhân viên';
+  const email = member.userId?.email || member.email || '';
   const initial = name.charAt(0).toUpperCase();
   const hourlyWage = member.hourlyWage || 0;
-  const gender = member.userId?.gender || 'Nam';
-  const age = member.userId?.age || '';
+  const gender = member.userId?.gender || member.gender || 'Nam';
+  const age = member.userId?.age || member.age || '';
 
   return (
     <View style={styles.card}>
@@ -33,10 +34,23 @@ export const MemberCardItem = ({
           </View>
         </View>
 
-        <View style={styles.roleTag}>
-          <Text style={styles.roleTagText}>
-            {isFullTime ? 'Full-time' : 'Part-time'}
-          </Text>
+        <View style={styles.badgeColumn}>
+          {isManager && (
+            <View style={styles.managerBadge}>
+              <Ionicons name="shield-checkmark" size={11} color="#1D4ED8" />
+              <Text style={styles.managerBadgeText}>Quản lý</Text>
+            </View>
+          )}
+          <View style={[styles.roleTag, isFullTime ? styles.roleTagFullTime : styles.roleTagPartTime]}>
+            <Text
+              style={[
+                styles.roleTagText,
+                isFullTime ? styles.roleTagTextFullTime : styles.roleTagTextPartTime,
+              ]}
+            >
+              {isFullTime ? 'Full-time' : 'Part-time'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -129,16 +143,49 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
+  badgeColumn: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  managerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  managerBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1D4ED8',
+  },
   roleTag: {
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 3,
+    paddingVertical: 2,
     paddingHorizontal: 8,
     borderRadius: 6,
+    borderWidth: 1,
+  },
+  roleTagFullTime: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#DDD6FE',
+  },
+  roleTagPartTime: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
   },
   roleTagText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    color: colors.primaryDark,
+  },
+  roleTagTextFullTime: {
+    color: '#7C3AED',
+  },
+  roleTagTextPartTime: {
+    color: '#D97706',
   },
   cardBottom: {
     flexDirection: 'row',

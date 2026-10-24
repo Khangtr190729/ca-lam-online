@@ -90,19 +90,23 @@ export const AdminMemberScreen = () => {
     setEditModalVisible(true);
   };
 
-  // Save Wage & Role
-  const handleSaveWageAndRole = async (member, wage, employmentType) => {
+  // Save Wage, Role, and Employment Type
+  const handleSaveWageAndRole = async (member, wage, employmentType, roleInStore) => {
     if (!store?._id || !member) return;
     const memberId = member._id || member.userId?._id;
 
     try {
       setSavingWage(true);
-      await Promise.all([
+      const updates = [
         memberApi.updateWage(store._id, memberId, wage),
         memberApi.updateEmploymentType(store._id, memberId, employmentType),
-      ]);
+      ];
+      if (roleInStore) {
+        updates.push(memberApi.updateRole(store._id, memberId, roleInStore));
+      }
+      await Promise.all(updates);
       setEditModalVisible(false);
-      Alert.alert('Thành công', 'Đã cập nhật lương và chế độ nhân viên!');
+      Alert.alert('Thành công', 'Đã cập nhật lương, chức vụ và chế độ làm việc của nhân viên!');
       await loadMembers();
     } catch (err) {
       Alert.alert('Lỗi', err.message || 'Cập nhật thất bại.');

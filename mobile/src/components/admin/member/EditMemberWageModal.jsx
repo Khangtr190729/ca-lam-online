@@ -4,8 +4,8 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
@@ -21,20 +21,24 @@ export const EditMemberWageModal = ({
 }) => {
   const [wage, setWage] = useState('');
   const [employmentType, setEmploymentType] = useState('PART_TIME');
+  const [roleInStore, setRoleInStore] = useState('EMPLOYEE');
 
   useEffect(() => {
     if (member) {
       setWage(String(member.hourlyWage || 25000));
-      setEmploymentType(member.roleInStore || 'PART_TIME');
+      setEmploymentType(member.employmentType || 'PART_TIME');
+      setRoleInStore(member.roleInStore || 'EMPLOYEE');
     }
-  }, [member]);
+  }, [member, visible]);
 
   const handleSave = () => {
-    const parsedWage = Number(wage);
-    onSave(member, parsedWage, employmentType);
+    const parsedWage = Number(wage) || 20000;
+    onSave(member, parsedWage, employmentType, roleInStore);
   };
 
   if (!member) return null;
+
+  const memberName = member.userId?.fullName || member.fullName || 'Nhân viên';
 
   return (
     <Modal
@@ -45,87 +49,141 @@ export const EditMemberWageModal = ({
     >
       <View style={styles.overlay}>
         <View style={styles.modalBox}>
+          {/* Header */}
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Cập nhật nhân viên</Text>
-              <Text style={styles.subtitle}>
-                {member.userId?.fullName || 'Nhân viên'}
-              </Text>
+              <Text style={styles.subtitle}>{memberName}</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close-circle" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          {/* Role selector */}
-          <Text style={styles.label}>Chế độ làm việc:</Text>
-          <View style={styles.pillsRow}>
-            <TouchableOpacity
-              style={[
-                styles.pill,
-                employmentType === 'FULL_TIME' && styles.pillActive,
-              ]}
-              onPress={() => setEmploymentType('FULL_TIME')}
-              activeOpacity={0.7}
-            >
-              <Text
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* 1. Chức vụ trong quán (Quản lý vs Nhân viên) */}
+            <Text style={styles.label}>Chức vụ trong quán:</Text>
+            <View style={styles.pillsRow}>
+              <TouchableOpacity
                 style={[
-                  styles.pillText,
-                  employmentType === 'FULL_TIME' && styles.pillTextActive,
+                  styles.pill,
+                  roleInStore === 'EMPLOYEE' && styles.pillActive,
                 ]}
+                onPress={() => setRoleInStore('EMPLOYEE')}
+                activeOpacity={0.7}
               >
-                Full-time
-              </Text>
-            </TouchableOpacity>
+                <Ionicons
+                  name="person"
+                  size={14}
+                  color={roleInStore === 'EMPLOYEE' ? colors.primary : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.pillText,
+                    roleInStore === 'EMPLOYEE' && styles.pillTextActive,
+                  ]}
+                >
+                  Nhân viên
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.pill,
-                employmentType === 'PART_TIME' && styles.pillActive,
-              ]}
-              onPress={() => setEmploymentType('PART_TIME')}
-              activeOpacity={0.7}
-            >
-              <Text
+              <TouchableOpacity
                 style={[
-                  styles.pillText,
-                  employmentType === 'PART_TIME' && styles.pillTextActive,
+                  styles.pill,
+                  roleInStore === 'MANAGER' && styles.pillActiveManager,
                 ]}
+                onPress={() => setRoleInStore('MANAGER')}
+                activeOpacity={0.7}
               >
-                Part-time
-              </Text>
-            </TouchableOpacity>
-          </View>
+                <Ionicons
+                  name="shield-checkmark"
+                  size={14}
+                  color={roleInStore === 'MANAGER' ? '#1D4ED8' : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.pillText,
+                    roleInStore === 'MANAGER' && styles.pillTextActiveManager,
+                  ]}
+                >
+                  Quản lý quán
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-          {/* Wage Input */}
-          <CustomInput
-            label="Mức lương theo giờ (VNĐ/giờ)"
-            value={wage}
-            onChangeText={setWage}
-            keyboardType="number-pad"
-            placeholder="25000"
-            leftIcon={
-              <Ionicons name="cash-outline" size={18} color={colors.primary} />
-            }
-          />
+            {/* 2. Chế độ làm việc (Full-time vs Part-time) */}
+            <Text style={styles.label}>Chế độ làm việc:</Text>
+            <View style={styles.pillsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.pill,
+                  employmentType === 'FULL_TIME' && styles.pillActivePurple,
+                ]}
+                onPress={() => setEmploymentType('FULL_TIME')}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.pillText,
+                    employmentType === 'FULL_TIME' && styles.pillTextActivePurple,
+                  ]}
+                >
+                  Toàn thời gian (Full-time)
+                </Text>
+              </TouchableOpacity>
 
-          <View style={styles.btnRow}>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={onClose}
-              disabled={saving}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelText}>Hủy</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.pill,
+                  employmentType === 'PART_TIME' && styles.pillActiveAmber,
+                ]}
+                onPress={() => setEmploymentType('PART_TIME')}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.pillText,
+                    employmentType === 'PART_TIME' && styles.pillTextActiveAmber,
+                  ]}
+                >
+                  Bán thời gian (Part-time)
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-            <CustomButton
-              title="Lưu thay đổi"
-              onPress={handleSave}
-              loading={saving}
-              style={styles.saveBtn}
+            {/* 3. Wage Input */}
+            <CustomInput
+              label="Mức lương theo giờ (VNĐ/giờ)"
+              value={wage}
+              onChangeText={setWage}
+              keyboardType="number-pad"
+              placeholder="25000"
+              leftIcon={
+                <Ionicons name="cash-outline" size={18} color={colors.primary} />
+              }
             />
-          </View>
+
+            {/* Actions */}
+            <View style={styles.btnRow}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={onClose}
+                disabled={saving}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelText}>Hủy</Text>
+              </TouchableOpacity>
+
+              <View style={styles.saveBtnWrap}>
+                <CustomButton
+                  title={saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  onPress={handleSave}
+                  loading={saving}
+                  size="small"
+                />
+              </View>
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -141,90 +199,117 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalBox: {
+    width: '100%',
+    maxHeight: '90%',
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 22,
-    width: '100%',
-    maxWidth: 380,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 10,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.text,
   },
   subtitle: {
-    fontSize: 13,
-    color: colors.primary,
+    fontSize: 12,
+    color: colors.primaryDark,
     fontWeight: '700',
     marginTop: 2,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.text,
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   pillsRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 14,
   },
   pill: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    alignItems: 'center',
     backgroundColor: '#F8FAFC',
   },
   pillActive: {
     borderColor: colors.primary,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: colors.primaryLight,
+  },
+  pillActiveManager: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+  },
+  pillActivePurple: {
+    borderColor: '#8B5CF6',
+    backgroundColor: '#F5F3FF',
+  },
+  pillActiveAmber: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#FFFBEB',
   },
   pillText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     color: colors.textSecondary,
   },
   pillTextActive: {
     color: colors.primaryDark,
+    fontWeight: '800',
+  },
+  pillTextActiveManager: {
+    color: '#1D4ED8',
+    fontWeight: '800',
+  },
+  pillTextActivePurple: {
+    color: '#6D28D9',
+    fontWeight: '800',
+  },
+  pillTextActiveAmber: {
+    color: '#B45309',
+    fontWeight: '800',
   },
   btnRow: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: 10,
-    marginTop: 8,
+    marginTop: 14,
   },
   cancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
   },
   cancelText: {
     fontSize: 13,
     fontWeight: '700',
     color: colors.textSecondary,
   },
-  saveBtn: {
-    flex: 1.6,
+  saveBtnWrap: {
+    minWidth: 120,
   },
 });
 
