@@ -16,13 +16,13 @@ export const RootNavigator = () => {
     return (
       <View style={styles.splashContainer}>
         <View style={styles.logoBadge}>
-          <Ionicons name="calendar" size={40} color="#FFFFFF" />
+          <Ionicons name="calendar" size={44} color={colors.primary} />
         </View>
         <Text style={styles.splashTitle}>Ca Làm Online</Text>
         <Text style={styles.splashSubtitle}>Xếp ca & Quản lý lương</Text>
         <ActivityIndicator
           size="large"
-          color={colors.primary}
+          color="#FFFFFF"
           style={styles.spinner}
         />
       </View>
@@ -46,37 +46,38 @@ export const RootNavigator = () => {
 const styles = StyleSheet.create({
   splashContainer: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#EA701B',
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: colors.primary,
+    width: 88,
+    height: 88,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 8,
-    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 10,
+    marginBottom: 20,
   },
   splashTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
-    color: colors.text,
+    color: '#FFFFFF',
     letterSpacing: -0.5,
   },
   splashSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 4,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 6,
+    fontWeight: '500',
   },
   spinner: {
-    marginTop: 32,
+    marginTop: 36,
   },
 });
 

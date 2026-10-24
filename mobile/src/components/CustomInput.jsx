@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../theme/colors';
 
-export const CustomInput = ({
+export const CustomInput = forwardRef(({
   label,
   required = false,
   value,
@@ -27,19 +29,45 @@ export const CustomInput = ({
   maxLength,
   multiline = false,
   numberOfLines = 1,
-}) => {
+  returnKeyType = 'next',
+  onSubmitEditing,
+}, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(!secureTextEntry);
+  const internalInputRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      internalInputRef.current?.focus();
+    },
+    blur: () => {
+      internalInputRef.current?.blur();
+    },
+    clear: () => {
+      internalInputRef.current?.clear();
+    },
+    isFocused: () => internalInputRef.current?.isFocused(),
+  }));
+
+  const handlePressWrapper = () => {
+    if (editable) {
+      internalInputRef.current?.focus();
+    }
+  };
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label && (
-        <Text style={styles.label}>
-          {label} {required && <Text style={styles.required}>*</Text>}
-        </Text>
+        <Pressable onPress={handlePressWrapper} disabled={!editable}>
+          <Text style={styles.label}>
+            {label} {required && <Text style={styles.required}>*</Text>}
+          </Text>
+        </Pressable>
       )}
 
-      <View
+      <Pressable
+        onPress={handlePressWrapper}
+        disabled={!editable}
         style={[
           styles.inputWrapper,
           isFocused && styles.inputWrapperFocused,
@@ -47,9 +75,14 @@ export const CustomInput = ({
           !editable && styles.inputWrapperDisabled,
         ]}
       >
-        {leftIcon && <View style={styles.leftIconContainer}>{leftIcon}</View>}
+        {leftIcon && (
+          <View pointerEvents="none" style={styles.leftIconContainer}>
+            {leftIcon}
+          </View>
+        )}
 
         <TextInput
+          ref={internalInputRef}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -61,8 +94,11 @@ export const CustomInput = ({
           maxLength={maxLength}
           multiline={multiline}
           numberOfLines={numberOfLines}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
+          underlineColorAndroid="transparent"
           style={[styles.input, inputStyle]}
         />
 
@@ -71,15 +107,16 @@ export const CustomInput = ({
             style={styles.eyeButton}
             onPress={() => setShowPassword(!showPassword)}
             activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={18}
+              size={20}
               color={colors.textSecondary}
             />
           </TouchableOpacity>
         )}
-      </View>
+      </Pressable>
 
       {error ? (
         <Text style={styles.errorText}>{error}</Text>
@@ -88,39 +125,45 @@ export const CustomInput = ({
       ) : null}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 14,
+    marginBottom: 16,
   },
   label: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 6,
   },
   required: {
     color: colors.danger,
+    fontWeight: '700',
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.2,
-    borderColor: colors.border,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     borderRadius: 14,
-    paddingHorizontal: 12,
-    minHeight: 46,
+    paddingHorizontal: 14,
+    height: 52,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
   },
   inputWrapperFocused: {
     borderColor: colors.primary,
     backgroundColor: '#FFFFFF',
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   inputWrapperError: {
     borderColor: colors.danger,
@@ -131,21 +174,27 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   leftIconContainer: {
-    marginRight: 8,
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   input: {
     flex: 1,
-    fontSize: 13,
+    height: '100%',
+    fontSize: 14,
     color: colors.text,
     fontWeight: '500',
-    paddingVertical: 10,
+    paddingVertical: 0,
+    paddingHorizontal: 2,
   },
   eyeButton: {
     padding: 6,
     marginLeft: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   errorText: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.danger,
     fontWeight: '600',
     marginTop: 4,

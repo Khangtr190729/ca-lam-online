@@ -80,6 +80,7 @@ export const CustomButton = ({
       disabled={disabled || loading}
       style={[
         styles.button,
+        variant === 'primary' && !disabled && styles.primaryShadow,
         getPadding(),
         {
           backgroundColor: getBackgroundColor(),
@@ -115,6 +116,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+  },
+  primaryShadow: {
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
   content: {
     flexDirection: 'row',

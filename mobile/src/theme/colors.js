@@ -1,10 +1,14 @@
 export const colors = {
   primary: '#EA701B',
-  primaryDark: '#D55E0D',
-  primaryLight: '#FFF0E5',
-  primaryUltraLight: '#FFF7F0',
-  background: '#FFF7F0',
+  primaryDark: '#C2410C',
+  primaryLight: '#FFF7ED',
+  primaryUltraLight: '#FFEDD5',
+  primaryMuted: '#FB923C',
+  background: '#F8F9FC', // Clean, crisp background that contrasts sharply with white cards
+  backgroundWarm: '#FFF6EE', // Warm cafe tone
   card: '#FFFFFF',
+  cardBorder: '#E2E8F0',
+  cardBorderWarm: '#FED7AA',
   text: '#0F172A',
   textSecondary: '#475569',
   textMuted: '#94A3B8',

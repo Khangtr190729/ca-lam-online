@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Alert,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
@@ -22,8 +22,12 @@ export const LoginScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+
   const handleLogin = async () => {
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
       setError('Vui lòng điền đầy đủ Email và Mật khẩu.');
       return;
     }
@@ -31,7 +35,7 @@ export const LoginScreen = ({ navigation }) => {
     try {
       setLoading(true);
       setError('');
-      await login(email.trim(), password);
+      await login(cleanEmail, password);
     } catch (err) {
       setError(err.message || 'Email hoặc mật khẩu không chính xác.');
     } finally {
@@ -39,204 +43,226 @@ export const LoginScreen = ({ navigation }) => {
     }
   };
 
-  const handleQuickFill = (testEmail, testPass) => {
-    setEmail(testEmail);
-    setPassword(testPass);
-    setError('');
-  };
-
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Branding Logo & Header */}
-        <View style={styles.header}>
+    <View style={styles.screenWrapper}>
+      <StatusBar barStyle="light-content" backgroundColor="#D55E0D" />
+
+      {/* Hero Header with Brand Colors */}
+      <View style={styles.heroBackground}>
+        {/* Decorative ambient bubbles for organic depth */}
+        <View style={styles.decorativeOrb1} />
+        <View style={styles.decorativeOrb2} />
+
+        <View style={styles.heroContent}>
           <View style={styles.logoBadge}>
-            <Ionicons name="calendar" size={32} color="#FFFFFF" />
+            <Ionicons name="calendar" size={32} color={colors.primary} />
           </View>
-          <Text style={styles.appTitle}>Ca Làm Online</Text>
-          <Text style={styles.appSubtitle}>
-            Ứng dụng theo dõi ca & bảng lương cho nhân viên
+          <Text style={styles.heroTitle}>Ca Làm Online</Text>
+          <Text style={styles.heroSubtitle}>
+            Xếp ca thông minh & Quản lý lương nhân viên
           </Text>
         </View>
+      </View>
 
-        {/* Card Form */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Đăng nhập</Text>
-          <Text style={styles.cardDesc}>
-            Nhập email và mật khẩu tài khoản người đi làm
-          </Text>
-
-          {error ? (
-            <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={16} color={colors.danger} />
-              <Text style={styles.errorBannerText}>{error}</Text>
+      {/* Main Content Area */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        enabled={Platform.OS === 'ios'}
+        style={styles.keyboardContainer}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="always"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Form Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Đăng nhập tài khoản</Text>
+              <Text style={styles.cardDesc}>
+                Nhập email và mật khẩu của bạn để vào ca làm việc
+              </Text>
             </View>
-          ) : null}
 
-          <CustomInput
-            label="Địa chỉ Email"
-            required
-            placeholder="an.nguyen@calam.vn"
-            value={email}
-            onChangeText={(t) => {
-              setEmail(t);
-              setError('');
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            leftIcon={
-              <Ionicons name="mail-outline" size={18} color={colors.textSecondary} />
-            }
-          />
+            {error ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={18} color={colors.danger} />
+                <Text style={styles.errorBannerText}>{error}</Text>
+              </View>
+            ) : null}
 
-          <CustomInput
-            label="Mật khẩu"
-            required
-            placeholder="••••••••"
-            value={password}
-            onChangeText={(t) => {
-              setPassword(t);
-              setError('');
-            }}
-            secureTextEntry
-            leftIcon={
-              <Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />
-            }
-          />
+            <CustomInput
+              ref={emailRef}
+              label="Địa chỉ Email"
+              required
+              placeholder="nhanvien@calam.vn"
+              value={email}
+              onChangeText={(t) => {
+                setEmail(t);
+                if (error) setError('');
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              leftIcon={
+                <Ionicons name="mail-outline" size={18} color={colors.primary} />
+              }
+            />
 
-          {/* Quên mật khẩu link */}
-          <TouchableOpacity
-            onPress={() => navigation.navigate('ForgotPassword', { initialEmail: email })}
-            style={styles.forgotPasswordButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
-          </TouchableOpacity>
+            <CustomInput
+              ref={passwordRef}
+              label="Mật khẩu"
+              required
+              placeholder="Nhập mật khẩu"
+              value={password}
+              onChangeText={(t) => {
+                setPassword(t);
+                if (error) setError('');
+              }}
+              secureTextEntry
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
+              leftIcon={
+                <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
+              }
+            />
 
-          <CustomButton
-            title="Đăng nhập ngay"
-            onPress={handleLogin}
-            loading={loading}
-            style={styles.loginButton}
-          />
-
-          {/* Switch to Register */}
-          <View style={styles.registerRow}>
-            <Text style={styles.registerPrompt}>Chưa có tài khoản? </Text>
+            {/* Quên mật khẩu link */}
             <TouchableOpacity
-              onPress={() => navigation.navigate('Register')}
+              onPress={() => navigation.navigate('ForgotPassword', { initialEmail: email })}
+              style={styles.forgotPasswordButton}
               activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.registerLink}>Đăng ký ngay</Text>
+              <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
             </TouchableOpacity>
+
+            <CustomButton
+              title="Đăng nhập ngay"
+              onPress={handleLogin}
+              loading={loading}
+              icon={<Ionicons name="log-in-outline" size={18} color="#FFFFFF" />}
+              style={styles.loginButton}
+            />
+
+            {/* Register Link */}
+            <View style={styles.registerRow}>
+              <Text style={styles.registerPrompt}>Chưa có tài khoản? </Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Register')}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.registerLink}>Đăng ký nhân viên</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-
-        {/* Test Accounts Quick Fill Helper */}
-        <View style={styles.quickFillCard}>
-          <View style={styles.quickFillHeader}>
-            <Ionicons name="flash-outline" size={14} color={colors.primary} />
-            <Text style={styles.quickFillTitle}>Tài khoản nhân viên thử nghiệm:</Text>
-          </View>
-
-          <View style={styles.quickFillButtons}>
-            <TouchableOpacity
-              style={styles.chipButton}
-              onPress={() => handleQuickFill('an.nguyen@calam.vn', 'password123')}
-            >
-              <Text style={styles.chipText}>An (Part-time)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.chipButton}
-              onPress={() => handleQuickFill('mai.tran@calam.vn', 'password123')}
-            >
-              <Text style={styles.chipText}>Mai (Part-time)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.chipButton}
-              onPress={() => handleQuickFill('phuc.le@calam.vn', 'password123')}
-            >
-              <Text style={styles.chipText}>Phúc (Full-time)</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  screenWrapper: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8F9FC',
   },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 24,
-    justifyContent: 'center',
+  heroBackground: {
+    backgroundColor: '#EA701B',
+    paddingTop: Platform.OS === 'ios' ? 60 : 36,
+    paddingBottom: 48,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  header: {
+  decorativeOrb1: {
+    position: 'absolute',
+    top: -40,
+    right: -30,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  decorativeOrb2: {
+    position: 'absolute',
+    bottom: -20,
+    left: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  heroContent: {
     alignItems: 'center',
-    marginBottom: 24,
-    marginTop: Platform.OS === 'ios' ? 20 : 10,
+    zIndex: 2,
   },
   logoBadge: {
-    width: 64,
-    height: 64,
+    width: 60,
+    height: 60,
     borderRadius: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 6,
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  appTitle: {
+  heroTitle: {
     fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
+    fontWeight: '900',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
   },
-  appSubtitle: {
+  heroSubtitle: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     marginTop: 4,
     fontWeight: '500',
+  },
+  keyboardContainer: {
+    flex: 1,
+    marginTop: -24,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
   },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 5,
+    borderWidth: 1.2,
+    borderColor: '#FED7AA',
+  },
+  cardHeader: {
+    marginBottom: 18,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
     color: colors.text,
+    letterSpacing: -0.3,
   },
   cardDesc: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: colors.textSecondary,
-    marginTop: 2,
-    marginBottom: 16,
+    marginTop: 4,
+    lineHeight: 18,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -245,81 +271,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FECACA',
     borderRadius: 12,
-    padding: 10,
-    marginBottom: 14,
+    padding: 12,
+    marginBottom: 16,
     gap: 8,
   },
   errorBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.danger,
     fontWeight: '600',
     flex: 1,
   },
   forgotPasswordButton: {
     alignSelf: 'flex-end',
-    marginBottom: 16,
+    marginBottom: 18,
     marginTop: -4,
   },
   forgotPasswordText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.primary,
   },
   loginButton: {
-    marginTop: 4,
+    height: 50,
   },
   registerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
-    paddingTop: 16,
+    marginTop: 22,
+    paddingTop: 18,
     borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+    borderTopColor: '#F1F5F9',
   },
   registerPrompt: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
+    fontWeight: '500',
   },
   registerLink: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
     color: colors.primary,
-  },
-  quickFillCard: {
-    marginTop: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-  },
-  quickFillHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  quickFillTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primaryDark,
-  },
-  quickFillButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  chipButton: {
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-  },
-  chipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primaryDark,
   },
 });
 
