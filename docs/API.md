@@ -22,9 +22,12 @@ Tài liệu này tổng hợp toàn bộ các RESTful API hiện có của hệ 
 |---|---|:---:|---|---|
 | `POST` | `/api/auth/register` | ❌ | Công khai | Đăng ký tài khoản (Chỉ chọn `ADMIN` hoặc `EMPLOYEE`, bắt buộc: email, password, fullName, gender, age) |
 | `POST` | `/api/auth/login` | ❌ | Công khai | Đăng nhập tài khoản, trả về JWT Token |
+| `POST` | `/api/auth/forgot-password` | ❌ | Công khai | **Yêu cầu gửi mã OTP 6 số qua Email** để đặt lại mật khẩu |
+| `POST` | `/api/auth/verify-reset-otp` | ❌ | Công khai | **Xác thực mã OTP 6 số** (kiểm tra khớp mã và còn trong 10 phút) |
+| `POST` | `/api/auth/reset-password` | ❌ | Công khai | **Đổi mật khẩu mới bằng mã OTP 6 số** |
 | `GET` | `/api/auth/me` | ✅ | Đã đăng nhập | Lấy thông tin cá nhân của tài khoản đang đăng nhập |
 | `PUT` | `/api/users/profile` | ✅ | Đã đăng nhập | Cập nhật thông tin cá nhân (họ tên, giới tính, tuổi, avatar) |
-| `PUT` | `/api/users/change-password` | ✅ | Đã đăng nhập | Đổi mật khẩu tài khoản |
+| `PUT` | `/api/users/change-password` | ✅ | Đã đăng nhập | Đổi mật khẩu tài khoản khi đã đăng nhập |
 
 ---
 

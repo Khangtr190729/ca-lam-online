@@ -33,6 +33,8 @@ Hệ thống sử dụng **MongoDB Atlas** với **5 bảng chính** phục vụ
 | `age` | Number | Có | Tuổi của người dùng |
 | `systemRole` | String | Có | Vai trò khi đăng ký: chỉ được chọn `ADMIN` (Chủ) hoặc `EMPLOYEE` (Người đi làm). **Không có Quản lý ở đây** |
 | `avatar` | String | Không | Đường dẫn ảnh đại diện cá nhân |
+| `resetPasswordOtp.code` | String | Không | Mã xác thực OTP 6 số dùng để đặt lại mật khẩu |
+| `resetPasswordOtp.expiresAt` | Date | Không | Thời điểm hết hạn của mã OTP (hiệu lực 10 phút) |
 | `createdAt` | Date | Có | Ngày tạo tài khoản |
 
 ---

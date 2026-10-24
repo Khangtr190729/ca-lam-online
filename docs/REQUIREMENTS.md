@@ -55,6 +55,15 @@ Hệ thống được phát triển theo mô hình:
 ### 3.2. Quản Lý Thông Tin Cá Nhân (Profile Update)
 - Tất cả người dùng (Chủ, Quản lý, Nhân viên) đều có quyền xem và chỉnh sửa thông tin cá nhân của mình: Họ tên, giới tính, tuổi, đổi mật khẩu và cập nhật ảnh đại diện.
 
+### 3.3. Chức Năng Quên Mật Khẩu Qua Mã OTP 6 Số Gửi Về Email
+- Cho phép tất cả người dùng khôi phục và đặt lại mật khẩu trực tiếp tại màn hình Đăng nhập (`/login`).
+- **Quy trình 3 bước bảo mật tiêu chuẩn:**
+  1. **Bước 1 - Yêu cầu mã OTP:** Người dùng nhập Email tài khoản. Hệ thống kiểm tra tài khoản, sinh **Mã xác thực OTP gồm 6 chữ số ngẫu nhiên** (ví dụ: `809786`) và tự động gửi email thông báo chứa mã đến hộp thư của người dùng.
+  2. **Bước 2 - Xác thực mã OTP:** Người dùng nhập mã OTP 6 số nhận được từ email.
+     - **Thời hạn hiệu lực:** Mã OTP chỉ có hiệu lực đúng **10 phút** kể từ thời điểm sinh mã.
+     - **Bảo mật:** Giao diện hỗ trợ đếm ngược 60 giây trước khi cho phép gửi lại mã OTP mới (hủy mã cũ).
+  3. **Bước 3 - Đặt mật khẩu mới:** Sau khi OTP được xác thực thành công, người dùng nhập mật khẩu mới (tối thiểu 6 ký tự) và xác nhận lại mật khẩu. Hệ thống băm an toàn với `bcryptjs`, lưu vào cơ sở dữ liệu và hủy mã OTP đã sử dụng để chống tái sử dụng.
+
 ---
 
 ## 4. Quản Lý Cửa Hàng & Cơ Chế Mời Nhân Viên

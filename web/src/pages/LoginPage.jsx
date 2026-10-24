@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Logo from '../components/Logo';
+import ForgotPasswordModal from '../components/auth/ForgotPasswordModal';
 
 export const LoginPage = () => {
   const { login } = useAuth();
@@ -13,6 +14,7 @@ export const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -104,6 +106,16 @@ export const LoginPage = () => {
               </div>
             </div>
 
+            <div className="flex items-center justify-end -mt-1">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-xs font-semibold text-[#EA701B] hover:text-[#D55E0D] hover:underline transition"
+              >
+                Quên mật khẩu?
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -125,6 +137,18 @@ export const LoginPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal Quên mật khẩu qua OTP 6 số */}
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        initialEmail={email}
+        onSuccess={(resetEmail) => {
+          setEmail(resetEmail);
+          setPassword('');
+          setError('');
+        }}
+      />
     </div>
   );
 };
