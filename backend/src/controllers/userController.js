@@ -19,45 +19,10 @@ export const updateProfile = async (req, res) => {
       });
     }
 
-    // 1. Cập nhật họ tên nếu có
-    if (fullName) {
-      if (!fullName.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Họ tên không được để trống.',
-        });
-      }
-      user.fullName = fullName.trim();
-    }
-
-    // 2. Cập nhật giới tính nếu có
-    if (gender) {
-      const allowedGenders = ['Nam', 'Nữ', 'Khác'];
-      if (!allowedGenders.includes(gender)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Giới tính phải là một trong: Nam, Nữ, Khác.',
-        });
-      }
-      user.gender = gender;
-    }
-
-    // 3. Cập nhật tuổi nếu có
-    if (age !== undefined) {
-      const parsedAge = Number(age);
-      if (isNaN(parsedAge) || parsedAge < 15 || parsedAge > 100) {
-        return res.status(400).json({
-          success: false,
-          message: 'Tuổi không hợp lệ (Độ tuổi từ 15 đến 100 tuổi).',
-        });
-      }
-      user.age = parsedAge;
-    }
-
-    // 4. Cập nhật ảnh đại diện nếu có
-    if (avatar !== undefined) {
-      user.avatar = avatar;
-    }
+    if (fullName) user.fullName = fullName.trim();
+    if (gender) user.gender = gender;
+    if (age !== undefined) user.age = Number(age);
+    if (avatar !== undefined) user.avatar = avatar;
 
     await user.save();
 
@@ -92,20 +57,6 @@ export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user.id;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.',
-      });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mật khẩu mới phải có tối thiểu 6 ký tự.',
-      });
-    }
 
     const user = await User.findById(userId);
     if (!user) {
