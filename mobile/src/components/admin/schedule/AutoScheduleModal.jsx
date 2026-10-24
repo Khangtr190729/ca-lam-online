@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../../theme/colors';
@@ -16,10 +17,15 @@ export const AutoScheduleModal = ({
   onRunAutoSchedule,
   loading = false,
 }) => {
-  const [priorityMode, setPriorityMode] = useState('FULL_TIME'); // 'FULL_TIME' | 'BALANCED'
+  const [staffPerShift, setStaffPerShift] = useState('AUTO_BY_STARS');
+  const [preserveExisting, setPreserveExisting] = useState(false);
 
   const handleConfirm = () => {
-    onRunAutoSchedule(priorityMode);
+    onRunAutoSchedule({
+      staffPerShift,
+      maxShiftsPerDay: 1,
+      preserveExisting,
+    });
   };
 
   return (
@@ -36,64 +42,120 @@ export const AutoScheduleModal = ({
             <View style={styles.iconCircle}>
               <Ionicons name="sparkles" size={24} color={colors.primary} />
             </View>
-            <Text style={styles.title}>Tự động xếp ca làm việc</Text>
+            <Text style={styles.title}>Tự động xếp lịch thông minh</Text>
             <Text style={styles.subtitle}>
-              Hệ thống sẽ tự động phân bổ nhân viên vào tất cả các ca trong tuần.
+              Hệ thống tự cân bằng tải và phân bổ nhân sự tối ưu cho cả tuần
             </Text>
           </View>
 
-          {/* Options */}
-          <Text style={styles.optionsLabel}>Chọn thuật toán phân bổ:</Text>
-
-          <TouchableOpacity
-            style={[
-              styles.optionCard,
-              priorityMode === 'FULL_TIME' && styles.optionCardSelected,
-            ]}
-            onPress={() => setPriorityMode('FULL_TIME')}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={
-                priorityMode === 'FULL_TIME'
-                  ? 'radio-button-on'
-                  : 'radio-button-off'
-              }
-              size={20}
-              color={priorityMode === 'FULL_TIME' ? colors.primary : colors.textMuted}
-            />
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>Ưu tiên nhân viên Full-time</Text>
-              <Text style={styles.optionDesc}>
-                Phân bổ đủ chỉ tiêu giờ làm cho nhân viên toàn thời gian trước.
-              </Text>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Rule notice */}
+            <View style={styles.ruleNotice}>
+              <Ionicons name="information-circle" size={18} color="#D97706" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ruleNoticeTitle}>Quy tắc phân bổ thông minh:</Text>
+                <Text style={styles.ruleNoticeText}>
+                  • Ca cao điểm (nhiều sao ⭐) sẽ được ưu tiên xếp thêm nhân sự{'\n'}
+                  • Cân bằng số ca và giờ làm đều nhau giữa các nhân viên{'\n'}
+                  • Tuyệt đối không xếp trùng hoặc cấn giờ nhau
+                </Text>
+              </View>
             </View>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.optionCard,
-              priorityMode === 'BALANCED' && styles.optionCardSelected,
-            ]}
-            onPress={() => setPriorityMode('BALANCED')}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={
-                priorityMode === 'BALANCED'
-                  ? 'radio-button-on'
-                  : 'radio-button-off'
-              }
-              size={20}
-              color={priorityMode === 'BALANCED' ? colors.primary : colors.textMuted}
-            />
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>Xếp đều cho tất cả nhân viên</Text>
-              <Text style={styles.optionDesc}>
-                Chia đều số lượng ca và số giờ làm giữa các nhân viên trong quán.
+            {/* Staff per shift options */}
+            <Text style={styles.optionsLabel}>Phương thức phân bổ nhân sự:</Text>
+
+            <TouchableOpacity
+              style={[
+                styles.optionCard,
+                staffPerShift === 'AUTO_BY_STARS' && styles.optionCardSelected,
+              ]}
+              onPress={() => setStaffPerShift('AUTO_BY_STARS')}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={
+                  staffPerShift === 'AUTO_BY_STARS'
+                    ? 'radio-button-on'
+                    : 'radio-button-off'
+                }
+                size={20}
+                color={staffPerShift === 'AUTO_BY_STARS' ? colors.primary : colors.textMuted}
+              />
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>Theo mức độ cao điểm (⭐) — Khuyên dùng</Text>
+                <Text style={styles.optionDesc}>
+                  Ca 3 sao tự động nhận nhiều nhân viên hơn ca 1 sao.
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.optionCard,
+                staffPerShift === '1' && styles.optionCardSelected,
+              ]}
+              onPress={() => setStaffPerShift('1')}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={
+                  staffPerShift === '1'
+                    ? 'radio-button-on'
+                    : 'radio-button-off'
+                }
+                size={20}
+                color={staffPerShift === '1' ? colors.primary : colors.textMuted}
+              />
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>Cố định 1 nhân viên / ca</Text>
+                <Text style={styles.optionDesc}>
+                  Phù hợp cửa hàng quy mô nhỏ hoặc ca làm đơn lẻ.
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.optionCard,
+                staffPerShift === '2' && styles.optionCardSelected,
+              ]}
+              onPress={() => setStaffPerShift('2')}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={
+                  staffPerShift === '2'
+                    ? 'radio-button-on'
+                    : 'radio-button-off'
+                }
+                size={20}
+                color={staffPerShift === '2' ? colors.primary : colors.textMuted}
+              />
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>Cố định 2 nhân viên / ca</Text>
+                <Text style={styles.optionDesc}>
+                  Phù hợp quán đông khách cần ít nhất 2 bạn trực cùng lúc.
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Preserve existing toggle */}
+            <TouchableOpacity
+              style={styles.preserveRow}
+              onPress={() => setPreserveExisting(!preserveExisting)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={preserveExisting ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={preserveExisting ? colors.primary : colors.textSecondary}
+              />
+              <Text style={styles.preserveText}>
+                Giữ nguyên các ca đã xếp thủ công trước đó
               </Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </ScrollView>
 
           {/* Action buttons */}
           <View style={styles.btnRow}>
@@ -131,7 +193,7 @@ export const AutoScheduleModal = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -141,7 +203,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 22,
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 400,
+    maxHeight: '85%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
@@ -153,10 +216,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   iconCircle: {
-    width: 54,
-    height: 54,
+    width: 52,
+    height: 52,
     borderRadius: 18,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: '#FFF7ED',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -172,24 +235,45 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 4,
-    lineHeight: 18,
+    lineHeight: 16,
+  },
+  ruleNotice: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 14,
+  },
+  ruleNoticeTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  ruleNoticeText: {
+    fontSize: 10,
+    color: '#78350F',
+    lineHeight: 15,
   },
   optionsLabel: {
     fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
+    fontWeight: '800',
+    color: colors.text,
     marginBottom: 10,
   },
   optionCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     padding: 12,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
     marginBottom: 10,
-    backgroundColor: '#F8FAFC',
   },
   optionCardSelected: {
     borderColor: colors.primary,
@@ -200,26 +284,42 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text,
   },
   optionDesc: {
     fontSize: 11,
     color: colors.textSecondary,
     marginTop: 2,
+    lineHeight: 15,
+  },
+  preserveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  preserveText: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '600',
   },
   btnRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    paddingVertical: 13,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelText: {
     fontSize: 13,
@@ -229,17 +329,17 @@ const styles = StyleSheet.create({
   confirmBtn: {
     flex: 2,
     flexDirection: 'row',
+    paddingVertical: 13,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    borderRadius: 12,
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   confirmText: {
     fontSize: 13,

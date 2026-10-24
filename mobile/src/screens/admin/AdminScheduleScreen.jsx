@@ -25,12 +25,15 @@ import AdminDayStrip from '../../components/admin/schedule/AdminDayStrip';
 import AdminShiftSlotCard from '../../components/admin/schedule/AdminShiftSlotCard';
 import AutoScheduleModal from '../../components/admin/schedule/AutoScheduleModal';
 import AssignEmployeeModal from '../../components/admin/schedule/AssignEmployeeModal';
+import PayrollSummaryCard from '../../components/admin/schedule/PayrollSummaryCard';
+import ShiftEvaluationModal from '../../components/admin/schedule/ShiftEvaluationModal';
 
 export const AdminScheduleScreen = () => {
   const { store } = useAuth();
   const [currentMonday, setCurrentMonday] = useState(() => getMondayOfWeek());
   const [selectedDate, setSelectedDate] = useState(() => formatDateToISO(new Date()));
   const [schedule, setSchedule] = useState(null);
+  const [assignments, setAssignments] = useState([]);
   const [storeShifts, setStoreShifts] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -41,9 +44,18 @@ export const AdminScheduleScreen = () => {
   const [autoLoading, setAutoLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
+  // Shift Evaluation State
+  const [evalModalVisible, setEvalModalVisible] = useState(false);
+  const [selectedAssignForEval, setSelectedAssignForEval] = useState(null);
+  const [evaluating, setEvaluating] = useState(false);
+
   const daysOfWeek = useMemo(() => getDaysOfWeek(currentMonday), [currentMonday]);
   const { week, year } = useMemo(() => getWeekNumberAndYear(currentMonday), [currentMonday]);
   const currentWeekNumber = useMemo(() => getWeekNumberAndYear(new Date()).week, []);
+
+  // Helper getters
+  const getShiftId = (shift) => (typeof shift === 'object' && shift !== null ? shift._id : shift);
+  const getUserId = (user) => (typeof user === 'object' && user !== null ? user._id : user);
 
   // Load Schedule, Shifts, and Members
   const loadScheduleData = useCallback(async (isRefresh = false) => {
@@ -58,14 +70,16 @@ export const AdminScheduleScreen = () => {
         memberApi.getMembers(store._id).catch(() => null),
       ]);
 
-      if (schedRes?.success && schedRes.schedule) {
+      if (schedRes?.success && schedRes.hasSchedule && schedRes.schedule) {
         setSchedule(schedRes.schedule);
+        setAssignments(schedRes.schedule.assignments || []);
       } else {
         setSchedule(null);
+        setAssignments([]);
       }
 
       if (shiftsRes?.success) {
-        setStoreShifts(shiftsRes.shifts || []);
+        setStoreShifts(shiftsRes.shifts || shiftsRes.data || []);
       }
 
       if (membersRes?.success) {
@@ -92,37 +106,146 @@ export const AdminScheduleScreen = () => {
     setSelectedDate(formatDateToISO(today));
   };
 
-  // Shifts for selected date
+  // Shifts for selected date (combining store shift templates with assignments)
   const shiftsForDay = useMemo(() => {
-    if (schedule?.shifts && schedule.shifts.length > 0) {
-      const existing = schedule.shifts.filter((s) => s.date === selectedDate);
-      if (existing.length > 0) return existing;
-    }
-    // Fallback: Show store default shift templates for this date
-    return storeShifts.map((s) => ({
-      shiftId: s._id,
-      shiftName: s.name,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      durationHours: s.durationHours,
-      peakLevel: s.peakLevel,
-      date: selectedDate,
-      assignments: [],
-    }));
-  }, [schedule, storeShifts, selectedDate]);
+    return storeShifts.map((s) => {
+      const sId = (s._id || '').toString();
+      const dayAssignments = assignments.filter((a) => {
+        const aShiftId = (getShiftId(a.shiftId) || '').toString();
+        return a.date === selectedDate && aShiftId === sId;
+      });
+
+      return {
+        shiftId: s._id,
+        shiftName: s.name,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        durationHours: s.durationHours,
+        peakLevel: s.peakLevel,
+        color: s.color,
+        date: selectedDate,
+        assignments: dayAssignments,
+      };
+    });
+  }, [storeShifts, assignments, selectedDate]);
+
+  // Compute Weekly Payroll Summary
+  const payrollSummary = useMemo(() => {
+    const employeeMap = {};
+
+    members.forEach((m) => {
+      const uId = getUserId(m.userId?._id || m.userId || m.user?._id);
+      if (!uId) return;
+      const uName = m.userId?.fullName || m.fullName || m.name || 'Nhân viên';
+      employeeMap[uId] = {
+        userId: uId,
+        name: uName,
+        email: m.userId?.email || '',
+        hourlyWage: m.hourlyWage || 20000,
+        totalHours: 0,
+        totalShifts: 0,
+        completedShifts: 0,
+        partialShifts: 0,
+        missedShifts: 0,
+        totalWage: 0,
+      };
+    });
+
+    assignments.forEach((a) => {
+      const uId = getUserId(a.userId);
+      const sId = getShiftId(a.shiftId);
+      const shift = storeShifts.find((s) => getShiftId(s._id) === sId);
+      const hours = a.hours || shift?.durationHours || 4;
+      const wage = a.hourlyWage || employeeMap[uId]?.hourlyWage || 20000;
+      const fullPay = Math.round(hours * wage);
+
+      if (!employeeMap[uId]) {
+        const uName =
+          (typeof a.userId === 'object' && a.userId !== null
+            ? a.userId.fullName || a.userId.name
+            : '') || 'Nhân viên';
+        employeeMap[uId] = {
+          userId: uId,
+          name: uName,
+          email: '',
+          hourlyWage: wage,
+          totalHours: 0,
+          totalShifts: 0,
+          completedShifts: 0,
+          partialShifts: 0,
+          missedShifts: 0,
+          totalWage: 0,
+        };
+      }
+
+      employeeMap[uId].totalShifts += 1;
+
+      if (a.attendanceStatus === 'MISSED') {
+        employeeMap[uId].missedShifts += 1;
+      } else if (a.attendanceStatus === 'PARTIAL') {
+        employeeMap[uId].partialShifts += 1;
+        employeeMap[uId].completedShifts += 1;
+        const effectiveHours = Math.max(0, hours - (a.deductedHours || 0));
+        employeeMap[uId].totalHours += effectiveHours;
+        const shiftPay = a.totalPay !== undefined ? a.totalPay : Math.max(0, fullPay - (a.deductedPay || 0));
+        employeeMap[uId].totalWage += shiftPay;
+      } else {
+        employeeMap[uId].completedShifts += 1;
+        employeeMap[uId].totalHours += hours;
+        const shiftPay = a.totalPay !== undefined ? a.totalPay : fullPay;
+        employeeMap[uId].totalWage += shiftPay;
+      }
+    });
+
+    let storeTotalPayroll = 0;
+    let storeTotalHours = 0;
+    let storeTotalShifts = assignments.length;
+    let storeTotalMissedShifts = 0;
+    let storeTotalPartialShifts = 0;
+
+    const list = Object.values(employeeMap)
+      .filter((e) => e.totalShifts > 0)
+      .map((e) => {
+        storeTotalPayroll += e.totalWage;
+        storeTotalHours += e.totalHours;
+        storeTotalMissedShifts += e.missedShifts;
+        storeTotalPartialShifts += e.partialShifts;
+        return e;
+      });
+
+    return {
+      employees: list,
+      storeTotalPayroll,
+      storeTotalHours,
+      storeTotalShifts,
+      storeTotalMissedShifts,
+      storeTotalPartialShifts,
+    };
+  }, [members, assignments, storeShifts]);
 
   // Handle Run Auto Schedule
-  const handleRunAutoSchedule = async (priorityMode) => {
+  const handleRunAutoSchedule = async (config) => {
     if (!store?._id) return;
     try {
       setAutoLoading(true);
-      const res = await scheduleApi.autoGenerate(store._id, {
+      const payload = {
         week,
         year,
-        priorityMode,
-      });
+        startDate: daysOfWeek[0].dateStr,
+        endDate: daysOfWeek[6].dateStr,
+        days: daysOfWeek.map((d) => ({
+          date: d.dateStr,
+          dayOfWeek: d.dayName,
+        })),
+        staffPerShift: config.staffPerShift || 'AUTO_BY_STARS',
+        maxShiftsPerDay: config.maxShiftsPerDay || 1,
+        preserveExisting: Boolean(config.preserveExisting),
+        existingAssignments: assignments,
+      };
+
+      const res = await scheduleApi.autoGenerate(store._id, payload);
       setAutoModalVisible(false);
-      Alert.alert('Thành công', res.message || 'Đã tự động xếp ca xong!');
+      Alert.alert('Thành công', res.message || 'Đã tự động xếp ca xong (Lưu bản nháp)!');
       await loadScheduleData();
     } catch (err) {
       Alert.alert('Lỗi', err.message || 'Không thể xếp ca tự động.');
@@ -136,7 +259,7 @@ export const AdminScheduleScreen = () => {
     if (!store?._id) return;
     Alert.alert(
       'Xuất bản lịch làm việc',
-      `Bạn có chắc chắn muốn xuất bản lịch làm Tuần ${week}/${year} và gửi email tới toàn bộ nhân viên?`,
+      `Bạn có chắc chắn muốn xuất bản lịch làm Tuần ${week}/${year} và gửi email thông báo tới toàn bộ nhân viên?`,
       [
         { text: 'Hủy', style: 'cancel' },
         {
@@ -162,36 +285,36 @@ export const AdminScheduleScreen = () => {
   const handleSelectMemberToAssign = async (member) => {
     if (!selectedShiftForAssign || !store?._id) return;
 
-    const currentShifts = schedule?.shifts ? [...schedule.shifts] : [];
-    const shiftIdx = currentShifts.findIndex(
-      (s) =>
-        s.date === selectedShiftForAssign.date &&
-        (s.shiftId === selectedShiftForAssign.shiftId || s.shiftName === selectedShiftForAssign.shiftName)
-    );
+    const dayObj = daysOfWeek.find((d) => d.dateStr === selectedShiftForAssign.date);
+    const uId = member.userId?._id || member.userId;
+    const uName = member.userId?.fullName || member.fullName || 'Nhân viên';
+    const wage = member.hourlyWage || 20000;
+    const hours = selectedShiftForAssign.durationHours || 4;
 
     const newAssignment = {
-      userId: member.userId?._id || member.userId,
-      userName: member.userId?.fullName || 'Nhân viên',
+      date: selectedShiftForAssign.date,
+      dayOfWeek: dayObj?.dayName || 'Thứ Hai',
+      shiftId: selectedShiftForAssign.shiftId,
+      userId: uId,
+      hours,
+      hourlyWage: wage,
+      totalPay: Math.round(hours * wage),
+      attendanceStatus: 'COMPLETED',
+      penaltyType: 'NONE',
+      deductedHours: 0,
+      deductedPay: 0,
     };
 
-    if (shiftIdx >= 0) {
-      currentShifts[shiftIdx].assignments = [
-        ...(currentShifts[shiftIdx].assignments || []),
-        newAssignment,
-      ];
-    } else {
-      currentShifts.push({
-        ...selectedShiftForAssign,
-        assignments: [newAssignment],
-      });
-    }
+    const updatedAssignments = [...assignments, newAssignment];
 
     try {
       setAssignModalVisible(false);
       await scheduleApi.saveDraft(store._id, {
         week,
         year,
-        shifts: currentShifts,
+        startDate: daysOfWeek[0].dateStr,
+        endDate: daysOfWeek[6].dateStr,
+        assignments: updatedAssignments,
       });
       await loadScheduleData();
     } catch (err) {
@@ -201,30 +324,86 @@ export const AdminScheduleScreen = () => {
 
   // Handle Remove Employee from Shift
   const handleRemoveEmployee = async (shiftItem, empId) => {
-    if (!store?._id || !schedule?.shifts) return;
+    if (!store?._id) return;
 
-    const currentShifts = [...schedule.shifts];
-    const shiftIdx = currentShifts.findIndex(
-      (s) =>
-        s.date === shiftItem.date &&
-        (s.shiftId === shiftItem.shiftId || s.shiftName === shiftItem.shiftName)
-    );
+    const updatedAssignments = assignments.filter((a) => {
+      const aShiftId = (getShiftId(a.shiftId) || '').toString();
+      const aUserId = (getUserId(a.userId) || '').toString();
+      const targetShiftId = (shiftItem.shiftId || '').toString();
+      const targetUserId = (empId || '').toString();
+      return !(a.date === shiftItem.date && aShiftId === targetShiftId && aUserId === targetUserId);
+    });
 
-    if (shiftIdx >= 0) {
-      currentShifts[shiftIdx].assignments = currentShifts[shiftIdx].assignments.filter(
-        (a) => (a.userId?._id || a.userId || a.id) !== empId
-      );
+    try {
+      await scheduleApi.saveDraft(store._id, {
+        week,
+        year,
+        startDate: daysOfWeek[0].dateStr,
+        endDate: daysOfWeek[6].dateStr,
+        assignments: updatedAssignments,
+      });
+      await loadScheduleData();
+    } catch (err) {
+      Alert.alert('Lỗi', err.message || 'Không thể xóa nhân viên khỏi ca.');
+    }
+  };
 
-      try {
-        await scheduleApi.saveDraft(store._id, {
-          week,
-          year,
-          shifts: currentShifts,
-        });
+  // Handle Open Shift Evaluation Modal
+  const handleOpenEvaluate = (shiftItem, assign) => {
+    const uId = getUserId(assign.userId);
+    const uName =
+      (typeof assign.userId === 'object' && assign.userId !== null
+        ? assign.userId.fullName || assign.userId.name
+        : '') ||
+      assign.userName ||
+      assign.fullName ||
+      'Nhân viên';
+
+    setSelectedAssignForEval({
+      shiftId: getShiftId(assign.shiftId) || shiftItem.shiftId,
+      shiftName: shiftItem.shiftName,
+      date: assign.date || shiftItem.date,
+      userId: uId,
+      userName: uName,
+      hourlyWage: assign.hourlyWage || 20000,
+      hours: assign.hours || shiftItem.durationHours || 4,
+      attendanceStatus: assign.attendanceStatus || 'COMPLETED',
+      deductedHours: assign.deductedHours || 0,
+      deductedPay: assign.deductedPay || 0,
+      penaltyType: assign.penaltyType || 'HOURS',
+      missedReason: assign.missedReason || '',
+    });
+    setEvalModalVisible(true);
+  };
+
+  // Handle Save Evaluation
+  const handleSaveEvaluation = async (evalData) => {
+    if (!store?._id) return;
+    try {
+      setEvaluating(true);
+      const res = await scheduleApi.evaluateShift(store._id, {
+        week,
+        year,
+        weekStart: currentMonday,
+        date: evalData.date,
+        shiftId: evalData.shiftId,
+        userId: evalData.userId,
+        attendanceStatus: evalData.attendanceStatus,
+        missedReason: evalData.missedReason,
+        deductedHours: evalData.deductedHours,
+        deductedPay: evalData.deductedPay,
+        penaltyType: evalData.penaltyType,
+      });
+
+      if (res?.success) {
+        setEvalModalVisible(false);
+        Alert.alert('Thành công', 'Đã lưu kết quả đánh giá ca làm việc!');
         await loadScheduleData();
-      } catch (err) {
-        Alert.alert('Lỗi', err.message || 'Không thể xóa nhân viên khỏi ca.');
       }
+    } catch (err) {
+      Alert.alert('Lỗi', err.message || 'Không thể đánh giá ca làm việc.');
+    } finally {
+      setEvaluating(false);
     }
   };
 
@@ -264,7 +443,10 @@ export const AdminScheduleScreen = () => {
           publishing={publishing}
         />
 
-        {/* 2. 7-Day Strip */}
+        {/* 2. Payroll Summary Card */}
+        <PayrollSummaryCard payrollSummary={payrollSummary} />
+
+        {/* 3. 7-Day Strip */}
         <AdminDayStrip
           daysOfWeek={daysOfWeek}
           selectedDate={selectedDate}
@@ -279,7 +461,7 @@ export const AdminScheduleScreen = () => {
           </View>
         )}
 
-        {/* 3. Shifts List */}
+        {/* 4. Shifts List */}
         <View style={styles.shiftsList}>
           <Text style={styles.sectionHeader}>
             DANH SÁCH CA NGÀY {selectedDate}
@@ -298,11 +480,13 @@ export const AdminScheduleScreen = () => {
               <AdminShiftSlotCard
                 key={shift.shiftId || idx}
                 shiftItem={shift}
+                isPublished={schedule?.status === 'PUBLISHED'}
                 onAssignEmployee={(s) => {
                   setSelectedShiftForAssign(s);
                   setAssignModalVisible(true);
                 }}
                 onRemoveEmployee={handleRemoveEmployee}
+                onEvaluateEmployee={handleOpenEvaluate}
               />
             ))
           )}
@@ -324,6 +508,15 @@ export const AdminScheduleScreen = () => {
         targetShift={selectedShiftForAssign}
         members={members}
         onSelectMember={handleSelectMemberToAssign}
+      />
+
+      {/* Shift Evaluation Modal */}
+      <ShiftEvaluationModal
+        visible={evalModalVisible}
+        onClose={() => setEvalModalVisible(false)}
+        targetAssignment={selectedAssignForEval}
+        onSaveEvaluation={handleSaveEvaluation}
+        loading={evaluating}
       />
     </View>
   );

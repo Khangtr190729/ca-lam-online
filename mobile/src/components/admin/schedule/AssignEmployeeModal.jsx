@@ -75,7 +75,7 @@ export const AssignEmployeeModal = ({
                           {member.userId?.fullName || 'Nhân viên'}
                         </Text>
                         <Text style={styles.memberRole}>
-                          {member.roleInStore === 'FULL_TIME' ? 'Full-time' : 'Part-time'} • {member.userId?.email}
+                          {member.employmentType === 'FULL_TIME' ? 'Full-time' : 'Part-time'} • {member.userId?.email}
                         </Text>
                       </View>
                     </View>
