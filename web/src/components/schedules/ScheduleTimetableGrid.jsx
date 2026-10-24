@@ -202,9 +202,18 @@ export const ScheduleTimetableGrid = ({
                               <div className="space-y-1">
                               {cellAssignments.map((a, idx) => {
                                 const aUserId = getUserId(a.userId);
-                                const assignedUser =
-                                  members.find((m) => getUserId(m.user?._id || m.userId) === aUserId)?.user ||
-                                  a.userObj || { name: 'Nhân viên' };
+                                const member = members.find(
+                                  (m) => getUserId(m.userId?._id || m.userId || m.user?._id) === aUserId
+                                );
+                                const displayName =
+                                  member?.fullName ||
+                                  member?.name ||
+                                  member?.user?.fullName ||
+                                  member?.user?.name ||
+                                  (typeof a.userId === 'object' && (a.userId?.fullName || a.userId?.name)) ||
+                                  a.userObj?.fullName ||
+                                  a.userObj?.name ||
+                                  'Nhân viên';
                                 const conflictShift = getAssignmentConflict(a);
                                 const isMissed = a.attendanceStatus === 'MISSED';
                                 const isPartial = a.attendanceStatus === 'PARTIAL';
@@ -245,7 +254,7 @@ export const ScheduleTimetableGrid = ({
                                             : 'bg-[#EA701B]'
                                         }`}
                                       >
-                                        {assignedUser.name ? assignedUser.name.charAt(0).toUpperCase() : 'U'}
+                                        {displayName ? displayName.charAt(0).toUpperCase() : 'N'}
                                       </div>
                                       <span
                                         className={`truncate font-semibold text-[11px] leading-tight ${
@@ -256,7 +265,7 @@ export const ScheduleTimetableGrid = ({
                                             : ''
                                         }`}
                                       >
-                                        {assignedUser.name}
+                                        {displayName}
                                       </span>
                                     </div>
 

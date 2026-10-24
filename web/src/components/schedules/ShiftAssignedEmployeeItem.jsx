@@ -35,7 +35,15 @@ export const ShiftAssignedEmployeeItem = ({
   submittingEvaluation = false,
   saving = false,
 }) => {
-  const name = member?.user?.name || member?.fullName || assignment.userObj?.name || 'Nhân viên';
+  const name =
+    member?.fullName ||
+    member?.name ||
+    member?.user?.fullName ||
+    member?.user?.name ||
+    (typeof assignment.userId === 'object' && (assignment.userId?.fullName || assignment.userId?.name)) ||
+    assignment.userObj?.fullName ||
+    assignment.userObj?.name ||
+    'Nhân viên';
   const wage = assignment.hourlyWage || member?.hourlyWage || 20000;
   const shiftHours = assignment.hours || targetShift?.durationHours || 4;
   const fullShiftPay = Math.round(shiftHours * wage);

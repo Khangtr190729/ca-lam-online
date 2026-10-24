@@ -186,10 +186,16 @@ export const ScheduleManagementPage = () => {
         const formatted = validAssignments.map((a) => {
           const sId = getShiftId(a.shiftId);
           const uId = getUserId(a.userId);
+          const member = members.find(
+            (m) => getUserId(m.userId?._id || m.userId || m.user?._id) === uId
+          );
           const uName =
             (typeof a.userId === 'object' && a.userId !== null
               ? a.userId.fullName || a.userId.name
-              : '') || 'Nhân viên';
+              : '') ||
+            member?.fullName ||
+            member?.name ||
+            'Nhân viên';
           return {
             date: a.date,
             dayOfWeek: a.dayOfWeek,
@@ -205,7 +211,7 @@ export const ScheduleManagementPage = () => {
             missedReason: a.missedReason || '',
             evaluatedAt: a.evaluatedAt || null,
             evaluatedBy: a.evaluatedBy || null,
-            userObj: { _id: uId, name: uName },
+            userObj: { _id: uId, name: uName, fullName: uName },
             shiftObj: typeof a.shiftId === 'object' && a.shiftId !== null ? a.shiftId : null,
           };
         });
@@ -439,8 +445,16 @@ export const ScheduleManagementPage = () => {
       return;
     }
 
-    const selectedMember = members.find((m) => getUserId(m.user?._id || m.userId) === uid);
+    const selectedMember = members.find(
+      (m) => getUserId(m.userId?._id || m.userId || m.user?._id) === uid
+    );
     const day = daysOfWeek.find((d) => d.dateStr === assignModal.date);
+    const empName =
+      selectedMember?.fullName ||
+      selectedMember?.name ||
+      selectedMember?.user?.fullName ||
+      selectedMember?.user?.name ||
+      'Nhân viên';
 
     const newAssignment = {
       date: assignModal.date,
@@ -451,7 +465,7 @@ export const ScheduleManagementPage = () => {
       missedReason: '',
       evaluatedAt: null,
       evaluatedBy: null,
-      userObj: selectedMember?.user || { _id: uid, name: 'Nhân viên' },
+      userObj: { _id: uid, name: empName, fullName: empName },
       shiftObj: targetShift,
     };
 
@@ -539,6 +553,42 @@ export const ScheduleManagementPage = () => {
       const res = await scheduleApi.saveDraft(store._id, payload);
       if (res.success) {
         setScheduleStatus('DRAFT');
+        if (res.schedule && Array.isArray(res.schedule.assignments)) {
+          const raw = res.schedule.assignments || [];
+          const formatted = raw.map((a) => {
+            const sId = getShiftId(a.shiftId);
+            const uId = getUserId(a.userId);
+            const member = members.find(
+              (m) => getUserId(m.userId?._id || m.userId || m.user?._id) === uId
+            );
+            const uName =
+              (typeof a.userId === 'object' && a.userId !== null
+                ? a.userId.fullName || a.userId.name
+                : '') ||
+              member?.fullName ||
+              member?.name ||
+              'Nhân viên';
+            return {
+              date: a.date,
+              dayOfWeek: a.dayOfWeek,
+              shiftId: sId,
+              userId: uId,
+              hours: a.hours,
+              hourlyWage: a.hourlyWage,
+              totalPay: a.totalPay,
+              penaltyType: a.penaltyType || 'NONE',
+              deductedHours: a.deductedHours || 0,
+              deductedPay: a.deductedPay || 0,
+              attendanceStatus: a.attendanceStatus || 'COMPLETED',
+              missedReason: a.missedReason || '',
+              evaluatedAt: a.evaluatedAt || null,
+              evaluatedBy: a.evaluatedBy || null,
+              userObj: { _id: uId, name: uName, fullName: uName },
+              shiftObj: typeof a.shiftId === 'object' && a.shiftId !== null ? a.shiftId : null,
+            };
+          });
+          setAssignments(formatted);
+        }
         setFeedback({
           type: 'success',
           message: 'Đã lưu bản nháp thành công! Bạn có thể tiếp tục chỉnh sửa.',
@@ -617,10 +667,16 @@ export const ScheduleManagementPage = () => {
         const formatted = rawAssignments.map((a) => {
           const sId = getShiftId(a.shiftId);
           const uId = getUserId(a.userId);
+          const member = members.find(
+            (m) => getUserId(m.userId?._id || m.userId || m.user?._id) === uId
+          );
           const uName =
             (typeof a.userId === 'object' && a.userId !== null
               ? a.userId.fullName || a.userId.name
-              : '') || 'Nhân viên';
+              : '') ||
+            member?.fullName ||
+            member?.name ||
+            'Nhân viên';
           return {
             date: a.date,
             dayOfWeek: a.dayOfWeek,
@@ -636,7 +692,7 @@ export const ScheduleManagementPage = () => {
             missedReason: a.missedReason || '',
             evaluatedAt: a.evaluatedAt || null,
             evaluatedBy: a.evaluatedBy || null,
-            userObj: { _id: uId, name: uName },
+            userObj: { _id: uId, name: uName, fullName: uName },
             shiftObj: typeof a.shiftId === 'object' && a.shiftId !== null ? a.shiftId : null,
           };
         });

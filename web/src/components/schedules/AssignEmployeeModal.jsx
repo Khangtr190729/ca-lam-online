@@ -174,7 +174,7 @@ export const AssignEmployeeModal = ({
               <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
                 {currentCellAssignments.map((a, idx) => {
                   const aUserId = getUserId(a.userId);
-                  const member = members.find((m) => getUserId(m.user?._id || m.userId) === aUserId);
+                  const member = members.find((m) => getUserId(m.userId?._id || m.userId || m.user?._id) === aUserId);
                   const conflictShift = getAssignmentConflict ? getAssignmentConflict(a) : null;
                   const isEvaluatingThis = evaluatingUserId === aUserId;
 
