@@ -39,8 +39,10 @@ Hệ thống quản lý chặt chẽ 3 vai trò người dùng trong cửa hàng
 - **Cảnh báo xung đột thời gian thực:**
   - Phát hiện nhân viên bị trùng khung giờ ca làm việc trong cùng ngày.
   - Cảnh báo nhân viên bị xếp quá số ca cho phép trong ngày.
-- **Thuật toán Tự động xếp lịch (Auto Schedule):**
-  - Tự động phân bổ số ca và số giờ làm việc công bằng, đều đặn giữa các nhân viên.
+- **Thuật toán Tự động xếp lịch thông minh (Smart Auto Schedule):**
+  - **Mức độ cao điểm của ca (1 - 3 sao):** Mỗi ca được đánh giá mức độ cao điểm: ⭐ *1 sao (Bình thường)*, ⭐⭐ *2 sao (Khá cao điểm)*, ⭐⭐⭐ *3 sao (Rất cao điểm)*. Quản lý có thể gắn sao trực tiếp tại cột "Khung Giờ / Ca" trên bảng lịch hoặc trang quản lý ca.
+  - **Phân bổ nhân sự linh hoạt theo quy mô quán:** Dựa vào số lượng nhân viên thực tế và số sao của từng ca để tự động điều phối: ca 2-3 sao được ưu tiên nhiều nhân sự hơn, ca 1 sao giữ cơ số chuẩn, không nhồi nhét dồn ứ vào 1 ca không cần thiết.
+  - Tự động phân bổ số ca và số giờ làm việc công bằng, đều đặn giữa các nhân viên trong tuần.
   - Tuân thủ nghiêm ngặt quy tắc không trùng ca và giữ nguyên các ca đã xếp thủ công (tùy chọn).
   - Tự động bỏ qua các ca/ngày đã diễn ra trong quá khứ.
   - Lưu kết quả dưới dạng **Bản nháp (DRAFT)** để quản lý xem lại và tinh chỉnh trước khi duyệt.
