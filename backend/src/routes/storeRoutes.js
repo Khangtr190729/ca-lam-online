@@ -9,6 +9,7 @@ import {
 } from '../controllers/storeController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import { validateBody } from '../middlewares/validateMiddleware.js';
+import { joinCodeLimiter } from '../middlewares/rateLimiter/storeLimiter.js';
 import {
   createStoreSchema,
   updateStoreSchema,
@@ -45,8 +46,8 @@ router.put('/my-store', validateBody(updateStoreSchema), updateMyStore);
 // 4. Sinh mã mời 6 số ngẫu nhiên (ADMIN) - Hiệu lực 1h, vô hiệu mã cũ
 router.post('/generate-invite-code', generateInviteCode);
 
-// 5. Nhân viên nhập mã mời 6 số để gia nhập (EMPLOYEE)
-router.post('/join-by-code', validateBody(joinByCodeSchema), joinByCode);
+// 5. Nhân viên nhập mã mời 6 số để gia nhập (EMPLOYEE - Giới hạn 5 lần/15p chống brute-force)
+router.post('/join-by-code', joinCodeLimiter, validateBody(joinByCodeSchema), joinByCode);
 
 // 6. Chủ quán mời trực tiếp nhân viên qua ID hoặc Email (ADMIN)
 router.post('/invite-by-id', validateBody(inviteEmployeeSchema), inviteById);

@@ -10,6 +10,7 @@ import {
 } from '../controllers/scheduleController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import { validateRequest } from '../middlewares/validateMiddleware.js';
+import { autoScheduleLimiter } from '../middlewares/rateLimiter/scheduleLimiter.js';
 import { storeParamsSchema } from '../validators/commonValidators.js';
 import {
   weekScheduleQuerySchema,
@@ -46,9 +47,10 @@ storeScheduleRouter.post(
   saveDraftSchedule
 );
 
-// 3. Tự động xếp lịch tối ưu (DRAFT): POST /api/stores/:storeId/schedules/auto-generate
+// 3. Tự động xếp lịch tối ưu (DRAFT - Giới hạn 10 lần/5p bảo vệ CPU): POST /api/stores/:storeId/schedules/auto-generate
 storeScheduleRouter.post(
   '/auto-generate',
+  autoScheduleLimiter,
   validateRequest({ params: storeParamsSchema, body: autoGenerateScheduleSchema }),
   autoGenerateSchedule
 );
