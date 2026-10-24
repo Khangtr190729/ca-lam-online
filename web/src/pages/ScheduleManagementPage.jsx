@@ -116,7 +116,7 @@ export const ScheduleManagementPage = () => {
   // Auto-schedule Modal State
   const [autoScheduleModalOpen, setAutoScheduleModalOpen] = useState(false);
   const [autoConfig, setAutoConfig] = useState({
-    staffPerShift: 1,
+    staffPerShift: 'AUTO_BY_STARS',
     maxShiftsPerDay: 1,
     preserveExisting: false,
   });
@@ -589,7 +589,7 @@ export const ScheduleManagementPage = () => {
           date: d.dateStr,
           dayOfWeek: d.dayName,
         })),
-        staffPerShift: Number(autoConfig.staffPerShift) || 1,
+        staffPerShift: autoConfig.staffPerShift || 'AUTO_BY_STARS',
         maxShiftsPerDay: Number(autoConfig.maxShiftsPerDay) || 1,
         preserveExisting: Boolean(autoConfig.preserveExisting),
         existingAssignments: assignments.map((a) => {
@@ -655,6 +655,50 @@ export const ScheduleManagementPage = () => {
       });
     } finally {
       setAutoGenerating(false);
+    }
+  };
+
+  // Cập nhật mức độ cao điểm (1 - 3 sao) của ca làm việc
+  const handleUpdateShiftStars = async (shiftId, newStars) => {
+    if (!store?._id) return;
+    const sId = getShiftId(shiftId);
+    const targetShift = shifts.find((s) => getShiftId(s._id) === sId);
+    if (!targetShift) return;
+
+    // Optimistic UI update
+    setShifts((prevShifts) =>
+      prevShifts.map((s) =>
+        getShiftId(s._id) === sId ? { ...s, peakLevel: newStars } : s
+      )
+    );
+
+    try {
+      const res = await shiftApi.updateShift(store._id, sId, {
+        peakLevel: newStars,
+      });
+      if (res.success) {
+        const starLabels = {
+          1: '⭐ Bình thường',
+          2: '⭐⭐ Khá cao điểm',
+          3: '⭐⭐⭐ Rất cao điểm',
+        };
+        setFeedback({
+          type: 'success',
+          message: `Đã cập nhật ca "${targetShift.name}": ${starLabels[newStars] || newStars + ' sao'}. Thuật toán xếp ca tự động sẽ điều phối nhân sự theo mức độ cao điểm này.`,
+        });
+      }
+    } catch (err) {
+      console.error('Lỗi cập nhật số sao ca:', err);
+      // Rollback
+      setShifts((prevShifts) =>
+        prevShifts.map((s) =>
+          getShiftId(s._id) === sId ? { ...s, peakLevel: targetShift.peakLevel || 1 } : s
+        )
+      );
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Không thể cập nhật số sao cho ca làm việc',
+      });
     }
   };
 
@@ -1048,6 +1092,7 @@ export const ScheduleManagementPage = () => {
         getAssignmentConflict={getAssignmentConflict}
         isShiftPassedOrCompleted={isShiftPassedOrCompleted}
         onOpenAssignModal={handleOpenAssignModal}
+        onUpdateShiftStars={handleUpdateShiftStars}
       />
 
       {/* Weekly Payroll Summary */}
@@ -1085,6 +1130,7 @@ export const ScheduleManagementPage = () => {
         isPastWeek={isPastWeek}
         daysOfWeek={daysOfWeek}
         todayDateStr={todayDateStr}
+        shifts={shifts}
         shiftsCount={shifts.length}
         membersCount={members.length}
       />

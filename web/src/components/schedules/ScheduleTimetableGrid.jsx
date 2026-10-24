@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Plus, Lock, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Clock, Plus, Lock, CheckCircle2, AlertTriangle, Star } from 'lucide-react';
 
 export const ScheduleTimetableGrid = ({
   shifts,
@@ -11,6 +11,7 @@ export const ScheduleTimetableGrid = ({
   getAssignmentConflict,
   isShiftPassedOrCompleted,
   onOpenAssignModal,
+  onUpdateShiftStars,
 }) => {
   if (shifts.length === 0) {
     return (
@@ -38,7 +39,7 @@ export const ScheduleTimetableGrid = ({
           {/* Header row: Days of the week */}
           <thead>
             <tr className="bg-[#FFF0E5] border-b border-orange-100 text-slate-700">
-              <th className="w-44 p-3.5 text-left text-xs font-bold uppercase tracking-wider text-slate-600 border-r border-orange-100">
+              <th className="w-48 p-3.5 text-left text-xs font-bold uppercase tracking-wider text-slate-600 border-r border-orange-100">
                 Khung Giờ / Ca
               </th>
               {daysOfWeek.map((day) => (
@@ -87,6 +88,51 @@ export const ScheduleTimetableGrid = ({
                   </div>
                   <div className="text-[11px] font-semibold text-slate-400 mt-0.5">
                     {shift.durationHours || 4} tiếng / ca
+                  </div>
+
+                  {/* Đánh dấu mức độ cao điểm (1 - 3 sao) - Tối giản */}
+                  <div className="mt-2 pt-1.5 flex items-center gap-1.5">
+                    <div className="flex items-center">
+                      {[1, 2, 3].map((starVal) => {
+                        const currentStars = shift.peakLevel || 1;
+                        const isFilled = starVal <= currentStars;
+                        return (
+                          <button
+                            key={starVal}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onUpdateShiftStars) {
+                                onUpdateShiftStars(shift._id, starVal);
+                              }
+                            }}
+                            className="p-0.5 hover:scale-110 transition cursor-pointer"
+                            title={`${starVal} sao - ${
+                              starVal === 1
+                                ? 'Bình thường'
+                                : starVal === 2
+                                ? 'Khá cao điểm'
+                                : 'Rất cao điểm'
+                            }`}
+                          >
+                            <Star
+                              className={`w-4 h-4 ${
+                                isFilled
+                                  ? 'fill-amber-400 stroke-amber-500'
+                                  : 'fill-slate-100 stroke-slate-300 hover:stroke-amber-400'
+                              }`}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="text-xs font-semibold text-slate-600 select-none">
+                      {(shift.peakLevel || 1) === 3
+                        ? 'Rất cao điểm'
+                        : (shift.peakLevel || 1) === 2
+                        ? 'Khá cao điểm'
+                        : 'Bình thường'}
+                    </span>
                   </div>
                 </td>
 

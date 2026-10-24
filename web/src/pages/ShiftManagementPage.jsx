@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   X,
   Sparkles,
-  Info
+  Info,
+  Star
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { shiftApi } from '../services/api';
@@ -30,7 +31,8 @@ export const ShiftManagementPage = () => {
     startTime: '08:00',
     endTime: '12:00',
     durationHours: 4,
-    color: '#EA701B'
+    color: '#EA701B',
+    peakLevel: 1
   });
 
   // Delete modal
@@ -123,7 +125,8 @@ export const ShiftManagementPage = () => {
       name: `Ca ${shifts.length + 1}`,
       startTime: '08:00',
       endTime: '12:00',
-      color: '#EA701B'
+      color: '#EA701B',
+      peakLevel: 1
     });
   };
 
@@ -136,8 +139,38 @@ export const ShiftManagementPage = () => {
       name: shift.name,
       startTime: shift.startTime,
       endTime: shift.endTime,
-      color: shift.color || '#EA701B'
+      color: shift.color || '#EA701B',
+      peakLevel: shift.peakLevel || 1
     });
+  };
+
+  // Quick update shift stars directly from card
+  const handleQuickUpdateStars = async (shiftId, newStars) => {
+    if (!store?._id) return;
+    const targetShift = shifts.find((s) => s._id === shiftId);
+    if (!targetShift) return;
+
+    // Optimistic UI update
+    setShifts((prev) =>
+      prev.map((s) => (s._id === shiftId ? { ...s, peakLevel: newStars } : s))
+    );
+
+    try {
+      const res = await shiftApi.updateShift(store._id, shiftId, { peakLevel: newStars });
+      if (res.success) {
+        const labels = { 1: '⭐ Bình thường', 2: '⭐⭐ Khá cao điểm', 3: '⭐⭐⭐ Rất cao điểm' };
+        setFeedback({
+          type: 'success',
+          message: `Đã cập nhật ca "${targetShift.name}": ${labels[newStars]}. Phục vụ xếp ca tự động!`
+        });
+      }
+    } catch (err) {
+      console.error('Lỗi cập nhật sao:', err);
+      setShifts((prev) =>
+        prev.map((s) => (s._id === shiftId ? { ...s, peakLevel: targetShift.peakLevel || 1 } : s))
+      );
+      setFeedback({ type: 'error', message: err.message || 'Không thể cập nhật số sao ca' });
+    }
   };
 
   // Save Shift
@@ -171,7 +204,8 @@ export const ShiftManagementPage = () => {
         startTime: shiftModal.startTime,
         endTime: shiftModal.endTime,
         durationHours: computedDuration,
-        color: shiftModal.color
+        color: shiftModal.color,
+        peakLevel: shiftModal.peakLevel || 1
       };
 
       if (shiftModal.isEdit) {
@@ -352,6 +386,42 @@ export const ShiftManagementPage = () => {
                   </span>
                 </div>
 
+                {/* Mức độ cao điểm (1 - 3 sao) - Tối giản */}
+                <div className="pt-2 flex items-center justify-between">
+                  <div className="flex items-center">
+                    {[1, 2, 3].map((starVal) => {
+                      const currentStars = shift.peakLevel || 1;
+                      const isFilled = starVal <= currentStars;
+                      return (
+                        <button
+                          key={starVal}
+                          type="button"
+                          onClick={() => handleQuickUpdateStars(shift._id, starVal)}
+                          className="p-0.5 hover:scale-110 transition cursor-pointer"
+                          title={`${starVal} sao - ${
+                            starVal === 1 ? 'Bình thường' : starVal === 2 ? 'Khá cao điểm' : 'Rất cao điểm'
+                          }`}
+                        >
+                          <Star
+                            className={`w-3.5 h-3.5 ${
+                              isFilled
+                                ? 'fill-amber-400 stroke-amber-500 text-amber-500'
+                                : 'fill-slate-100 stroke-slate-300 text-slate-300 hover:stroke-amber-400'
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="text-xs font-semibold text-slate-600 select-none">
+                    {(shift.peakLevel || 1) === 3
+                      ? 'Rất cao điểm'
+                      : (shift.peakLevel || 1) === 2
+                      ? 'Khá cao điểm'
+                      : 'Bình thường'}
+                  </span>
+                </div>
+
                 {/* Cảnh báo nếu ca này trùng giờ với ca khác trong quán */}
                 {hasConflict && (
                   <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2 text-[11px] text-amber-800 animate-fade-in">
@@ -455,6 +525,54 @@ export const ShiftManagementPage = () => {
                     <span className="text-xs font-mono text-slate-500 font-semibold">{shiftModal.color}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Mức độ cao điểm (1 - 3 sao) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Mức độ cao điểm của ca (phục vụ tự động xếp lịch):
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { stars: 1, label: 'Bình thường', desc: '1 sao (Tiêu chuẩn)', badgeColor: 'bg-slate-100 text-slate-700' },
+                    { stars: 2, label: 'Khá cao điểm', desc: '2 sao (Đông khách)', badgeColor: 'bg-amber-100 text-amber-800' },
+                    { stars: 3, label: 'Rất cao điểm', desc: '3 sao (Giờ vàng)', badgeColor: 'bg-rose-100 text-rose-800' },
+                  ].map((opt) => {
+                    const isSelected = (shiftModal.peakLevel || 1) === opt.stars;
+                    return (
+                      <button
+                        key={opt.stars}
+                        type="button"
+                        onClick={() => setShiftModal((prev) => ({ ...prev, peakLevel: opt.stars }))}
+                        className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-[#EA701B] bg-orange-50/70 ring-2 ring-orange-200 shadow-xs'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-0.5 mb-1.5">
+                          {[1, 2, 3].map((s) => (
+                            <Star
+                              key={s}
+                              className={`w-3.5 h-3.5 ${
+                                s <= opt.stars
+                                  ? 'fill-amber-400 stroke-amber-500 text-amber-500'
+                                  : 'fill-slate-100 stroke-slate-300 text-slate-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">{opt.label}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 italic">
+                  * Thuật toán sẽ ưu tiên phân bổ thêm nhân sự cho ca 2-3 sao dựa trên tổng số nhân viên quán.
+                </p>
               </div>
 
               {/* Conflict warning in modal */}

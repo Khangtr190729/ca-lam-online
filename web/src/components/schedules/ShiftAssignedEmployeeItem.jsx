@@ -45,43 +45,40 @@ export const ShiftAssignedEmployeeItem = ({
 
   return (
     <div
-      className={`p-3 rounded-xl border transition flex flex-col gap-2 ${
-        isMissed
+      className={`p-3 rounded-xl border transition flex flex-col gap-2 ${isMissed
           ? 'bg-rose-50/70 border-rose-300'
           : isPartial
-          ? 'bg-amber-50/70 border-amber-300'
-          : conflictShift
-          ? 'bg-red-50 border-red-300'
-          : 'bg-slate-50 border-slate-200/80'
-      }`}
+            ? 'bg-amber-50/70 border-amber-300'
+            : conflictShift
+              ? 'bg-red-50 border-red-300'
+              : 'bg-slate-50 border-slate-200/80'
+        }`}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className={`w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 ${
-              isMissed
+            className={`w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0 ${isMissed
                 ? 'bg-rose-500'
                 : isPartial
-                ? 'bg-amber-500'
-                : conflictShift
-                ? 'bg-red-500'
-                : isShiftPassed
-                ? 'bg-slate-500'
-                : 'bg-[#EA701B]'
-            }`}
+                  ? 'bg-amber-500'
+                  : conflictShift
+                    ? 'bg-red-500'
+                    : isShiftPassed
+                      ? 'bg-slate-500'
+                      : 'bg-[#EA701B]'
+              }`}
           >
             {name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <p
-                className={`text-xs font-bold truncate ${
-                  isMissed
+                className={`text-xs font-bold truncate ${isMissed
                     ? 'line-through text-slate-500'
                     : isPartial
-                    ? 'text-amber-950'
-                    : 'text-slate-800'
-                }`}
+                      ? 'text-amber-950'
+                      : 'text-slate-800'
+                  }`}
               >
                 {name}
               </p>
@@ -160,7 +157,7 @@ export const ShiftAssignedEmployeeItem = ({
                     title="Ghi nhận nhân viên đi trễ, về sớm hoặc vi phạm nhẹ (trừ một phần lương)"
                   >
                     <Clock3 className="w-3 h-3 text-amber-700" />
-                    <span>Chưa tốt (Trừ 1 phần)</span>
+                    <span>Chưa tốt</span>
                   </button>
 
                   {/* Nút 2: Không hoàn thành (Trừ cả ca) */}
@@ -196,16 +193,14 @@ export const ShiftAssignedEmployeeItem = ({
       {/* Hiển thị lý do và thông tin người đánh giá */}
       {(isMissed || isPartial) && !isEvaluating && (
         <div
-          className={`mt-1 px-2.5 py-1.5 rounded-lg border text-[11px] flex items-start gap-1.5 ${
-            isMissed
+          className={`mt-1 px-2.5 py-1.5 rounded-lg border text-[11px] flex items-start gap-1.5 ${isMissed
               ? 'bg-rose-100/60 border-rose-200 text-rose-900'
               : 'bg-amber-100/60 border-amber-300 text-amber-950'
-          }`}
+            }`}
         >
           <AlertCircle
-            className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
-              isMissed ? 'text-rose-600' : 'text-amber-700'
-            }`}
+            className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${isMissed ? 'text-rose-600' : 'text-amber-700'
+              }`}
           />
           <div className="space-y-0.5 w-full">
             {isPartial && (
@@ -231,9 +226,8 @@ export const ShiftAssignedEmployeeItem = ({
             )}
             {assignment.evaluatedBy && (
               <div
-                className={`text-[10px] font-medium ${
-                  isMissed ? 'text-rose-700' : 'text-amber-800'
-                }`}
+                className={`text-[10px] font-medium ${isMissed ? 'text-rose-700' : 'text-amber-800'
+                  }`}
               >
                 Đánh giá bởi:{' '}
                 <strong>

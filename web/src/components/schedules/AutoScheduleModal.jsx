@@ -1,5 +1,5 @@
-import React from 'react';
-import { Sparkles, X, Info, AlertCircle, Clock, Users } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Sparkles, X, Info, AlertCircle, Clock, Users, Star } from 'lucide-react';
 
 export const AutoScheduleModal = ({
   isOpen,
@@ -11,9 +11,65 @@ export const AutoScheduleModal = ({
   isPastWeek,
   daysOfWeek,
   todayDateStr,
+  shifts = [],
   shiftsCount,
   membersCount,
 }) => {
+  // Tính toán trước định mức dự kiến cho từng ca theo số sao và số nhân viên của quán
+  const previewTargets = useMemo(() => {
+    if (!Array.isArray(shifts) || shifts.length === 0) return {};
+    const mode = autoConfig.staffPerShift;
+    const numeric = parseInt(mode, 10);
+    if (!isNaN(numeric) && numeric > 0 && mode !== 'AUTO_BY_STARS') {
+      const res = {};
+      shifts.forEach((s) => {
+        res[s._id] = numeric;
+      });
+      return res;
+    }
+
+    const targets = {};
+    shifts.forEach((s) => {
+      targets[s._id] = 0;
+    });
+    if (membersCount <= 0) return targets;
+
+    const dailyCap = membersCount * Math.max(1, autoConfig.maxShiftsPerDay || 1);
+    const sorted = [...shifts].sort((a, b) => (b.peakLevel || 1) - (a.peakLevel || 1));
+
+    if (dailyCap < shifts.length) {
+      for (let i = 0; i < dailyCap; i++) {
+        targets[sorted[i]._id] = 1;
+      }
+      return targets;
+    }
+
+    shifts.forEach((s) => {
+      targets[s._id] = 1;
+    });
+    let remaining = dailyCap - shifts.length;
+
+    const getCap = (peak) => {
+      if (peak >= 3) return membersCount >= shifts.length * 3 ? 4 : 3;
+      if (peak === 2) return membersCount >= shifts.length * 3 ? 3 : 2;
+      return membersCount >= shifts.length * 4 ? 2 : 1;
+    };
+
+    while (remaining > 0) {
+      const eligible = sorted.filter((s) => {
+        const p = s.peakLevel || 1;
+        return (targets[s._id] || 0) < getCap(p);
+      });
+      if (eligible.length === 0) break;
+      const highestPeak = Math.max(...eligible.map((s) => s.peakLevel || 1));
+      const pool = eligible.filter((s) => (s.peakLevel || 1) === highestPeak);
+      pool.sort((a, b) => (targets[a._id] || 0) - (targets[b._id] || 0));
+      targets[pool[0]._id] += 1;
+      remaining--;
+    }
+    return targets;
+  }, [shifts, membersCount, autoConfig.maxShiftsPerDay, autoConfig.staffPerShift]);
+
   if (!isOpen) return null;
 
   return (
@@ -30,7 +86,7 @@ export const AutoScheduleModal = ({
                 Tự động xếp lịch thông minh
               </h3>
               <p className="text-xs text-slate-500">
-                Phân chia ca làm tối ưu & lưu thành bản nháp
+                Phân chia ca làm tối ưu theo mức độ cao điểm & lưu bản nháp
               </p>
             </div>
           </div>
@@ -44,7 +100,7 @@ export const AutoScheduleModal = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto">
           {/* How it works note */}
           <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 text-xs text-amber-900 space-y-1.5">
             <div className="font-bold flex items-center gap-1.5 text-amber-800">
@@ -52,7 +108,8 @@ export const AutoScheduleModal = ({
               <span>Quy tắc tối ưu tự động:</span>
             </div>
             <ul className="list-disc list-inside space-y-1 text-slate-700 pl-1">
-              <li>Cân bằng số ca và tổng số giờ làm việc đều giữa các nhân viên.</li>
+              <li>Ưu tiên phân bổ thêm nhân sự cho <b>ca cao điểm (nhiều sao ⭐)</b> dựa trên số nhân viên quán.</li>
+              <li>Cân bằng công bằng số ca và tổng số giờ làm việc đều giữa các nhân viên.</li>
               <li>Tuyệt đối không trùng ca và không giao thoa khung giờ trong cùng ngày.</li>
               <li>Lưu dưới dạng <b>Bản nháp (DRAFT)</b> — quản lý có thể xem lại, tinh chỉnh từng ca và xác nhận sau.</li>
             </ul>
@@ -89,20 +146,83 @@ export const AutoScheduleModal = ({
           <div className="space-y-3 pt-1">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Số nhân viên cần cho mỗi ca làm:
+                Phương thức phân bổ nhân sự:
               </label>
               <select
                 value={autoConfig.staffPerShift}
                 onChange={(e) =>
-                  setAutoConfig((prev) => ({ ...prev, staffPerShift: Number(e.target.value) }))
+                  setAutoConfig((prev) => ({ ...prev, staffPerShift: e.target.value }))
                 }
                 className="w-full px-3.5 py-2.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#EA701B] outline-hidden transition"
               >
-                <option value={1}>1 nhân viên / ca (Tiêu chuẩn)</option>
-                <option value={2}>2 nhân viên / ca (Quán đông khách)</option>
-                <option value={3}>3 nhân viên / ca</option>
+                <option value="AUTO_BY_STARS">
+                  ⭐ Phân bổ theo mức độ cao điểm (sao ⭐) — Khuyên dùng
+                </option>
+                <option value="1">Cố định 1 nhân viên / ca (Tiêu chuẩn)</option>
+                <option value="2">Cố định 2 nhân viên / ca (Quán đông)</option>
+                <option value="3">Cố định 3 nhân viên / ca</option>
               </select>
             </div>
+
+            {/* Chi tiết dự kiến phân bổ theo số sao cao điểm */}
+            {autoConfig.staffPerShift === 'AUTO_BY_STARS' && shifts && shifts.length > 0 && (
+              <div className="bg-amber-50/70 border border-amber-200/70 rounded-xl p-3 text-xs space-y-2">
+                <div className="flex items-center justify-between text-amber-900 font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    <span>Dự kiến phân bổ nhân sự theo ca:</span>
+                  </span>
+                  <span className="text-[11px] text-amber-700 font-normal">
+                    (Quán có {membersCount} nhân viên)
+                  </span>
+                </div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {shifts.map((s) => {
+                    const peak = s.peakLevel || 1;
+                    const target = previewTargets[s._id] || 1;
+                    return (
+                      <div
+                        key={s._id}
+                        className="flex items-center justify-between bg-white/90 px-2.5 py-1.5 rounded-lg border border-amber-200/50 text-slate-700"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: s.color || '#EA701B' }}
+                          />
+                          <span className="font-bold">{s.name}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {s.startTime} - {s.endTime}
+                          </span>
+                          <span className="flex items-center text-amber-500 text-[11px]">
+                            {'★'.repeat(peak)}{'☆'.repeat(3 - peak)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              peak === 3
+                                ? 'bg-rose-100 text-rose-700'
+                                : peak === 2
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {peak === 3 ? 'Rất cao điểm' : peak === 2 ? 'Khá cao điểm' : 'Bình thường'}
+                          </span>
+                          <span className="font-extrabold text-[#EA701B] text-xs">
+                            → {target} nhân viên
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-slate-500 italic pt-0.5">
+                  💡 Bạn có thể bấm trực tiếp vào số sao ở cột "Khung Giờ / Ca" ngoài màn hình lịch để chỉnh mức cao điểm cho từng ca.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
