@@ -206,7 +206,8 @@ export const MyScheduleScreen = () => {
       {/* Shift Detail Modal */}
       <ShiftDetailModal
         visible={!!activeShiftDetail}
-        shift={activeShiftDetail}
+        shiftDetail={activeShiftDetail}
+        storeName={store?.name}
         onClose={() => setActiveShiftDetail(null)}
       />
     </View>

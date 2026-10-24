@@ -15,21 +15,23 @@ export const ShiftDetailModal = ({
   visible,
   onClose,
   shiftDetail,
+  shift,
   storeName,
 }) => {
-  if (!shiftDetail) return null;
+  const detail = shiftDetail || shift;
+  if (!detail) return null;
 
-  const isMissed = shiftDetail.attendanceStatus === 'MISSED';
-  const isPartial = shiftDetail.attendanceStatus === 'PARTIAL';
+  const isMissed = detail.attendanceStatus === 'MISSED';
+  const isPartial = detail.attendanceStatus === 'PARTIAL';
 
   const shiftName =
-    shiftDetail.shift?.name || shiftDetail.shiftName || 'Ca làm việc';
+    detail.shift?.name || detail.shiftName || 'Ca làm việc';
   const startTime =
-    shiftDetail.shift?.startTime || shiftDetail.startTime || '';
+    detail.shift?.startTime || detail.startTime || '';
   const endTime =
-    shiftDetail.shift?.endTime || shiftDetail.endTime || '';
+    detail.shift?.endTime || detail.endTime || '';
   const duration =
-    shiftDetail.shift?.durationHours || shiftDetail.hours || 0;
+    detail.shift?.durationHours || detail.hours || 0;
 
   return (
     <Modal
@@ -59,7 +61,7 @@ export const ShiftDetailModal = ({
             {/* Info Rows */}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Ngày làm việc:</Text>
-              <Text style={styles.infoValue}>{shiftDetail.date}</Text>
+              <Text style={styles.infoValue}>{detail.date}</Text>
             </View>
 
             <View style={styles.infoRow}>
@@ -83,19 +85,19 @@ export const ShiftDetailModal = ({
                     <Text style={styles.partialTitle}>Chưa hoàn thành tốt</Text>
                   </View>
                   <Text style={styles.deductedAmount}>
-                    -{formatVND(shiftDetail.deductedPay || 0)}
+                    -{formatVND(detail.deductedPay || 0)}
                   </Text>
                 </View>
-                {shiftDetail.missedReason ? (
+                {detail.missedReason ? (
                   <Text style={styles.reasonText}>
                     <Text style={styles.bold}>Lý do: </Text>
-                    {shiftDetail.missedReason}
+                    {detail.missedReason}
                   </Text>
                 ) : null}
                 <View style={styles.takeHomeRow}>
                   <Text style={styles.takeHomeLabel}>Lương ca thực nhận:</Text>
                   <Text style={styles.takeHomeValue}>
-                    {formatVND(shiftDetail.totalPay || 0)}
+                    {formatVND(detail.totalPay || 0)}
                   </Text>
                 </View>
               </View>
@@ -111,10 +113,10 @@ export const ShiftDetailModal = ({
                   </View>
                   <Text style={styles.deductedAmount}>Trừ 100% lương</Text>
                 </View>
-                {shiftDetail.missedReason ? (
+                {detail.missedReason ? (
                   <Text style={styles.reasonText}>
                     <Text style={styles.bold}>Lý do: </Text>
-                    {shiftDetail.missedReason}
+                    {detail.missedReason}
                   </Text>
                 ) : null}
               </View>
@@ -123,15 +125,15 @@ export const ShiftDetailModal = ({
             {/* Coworkers Section */}
             <View style={styles.coworkersSection}>
               <Text style={styles.coworkersTitle}>
-                Đồng nghiệp cùng ca ({shiftDetail.coworkers?.length || 0}):
+                Đồng nghiệp cùng ca ({detail.coworkers?.length || 0}):
               </Text>
 
-              {!shiftDetail.coworkers || shiftDetail.coworkers.length === 0 ? (
+              {!detail.coworkers || detail.coworkers.length === 0 ? (
                 <Text style={styles.noCoworkersText}>
                   Bạn là nhân sự duy nhất được phân ca này.
                 </Text>
               ) : (
-                shiftDetail.coworkers.map((c, idx) => (
+                detail.coworkers.map((c, idx) => (
                   <View key={c._id || idx} style={styles.coworkerItem}>
                     <View style={styles.avatarCircle}>
                       <Text style={styles.avatarInitial}>
