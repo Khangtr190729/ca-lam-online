@@ -327,3 +327,72 @@ export const sendMissedShiftEmail = async ({
     return { success: false, error: error.message, to: toEmail };
   }
 };
+
+/**
+ * Gửi email chứa mã OTP 6 số để xác thực đặt lại mật khẩu
+ */
+export const sendPasswordResetOtpEmail = async ({ toEmail, userName, otp }) => {
+  try {
+    const transporter = createTransporter();
+
+    if (!transporter) {
+      console.log(
+        `📧 [EMAIL SIMULATION] Gửi mã OTP đặt lại mật khẩu đến ${toEmail} (${userName}) - Mã OTP: ${otp} (Bỏ qua gửi thật do chưa cấu hình EMAIL_USER/EMAIL_PASS trong .env).`
+      );
+      return { success: true, simulated: true, to: toEmail, otp };
+    }
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; border: 1px solid #fed7aa; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <div style="background: linear-gradient(135deg, #EA701B, #c2410c); padding: 26px 20px; text-align: center; color: white;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">Ca Làm Online</h2>
+          <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.95; font-weight: 500;">YÊU CẦU ĐẶT LẠI MẬT KHẨU TÀI KHOẢN</p>
+        </div>
+
+        <div style="padding: 28px 24px; text-align: center;">
+          <p style="font-size: 15px; color: #1f2937; margin: 0 0 16px 0;">
+            Xin chào <strong>${userName || 'Bạn'}</strong>,
+          </p>
+          <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+            Hệ thống nhận được yêu cầu đặt lại mật khẩu cho tài khoản đăng nhập với email <strong style="color: #111827;">${toEmail}</strong>. Vui lòng sử dụng mã xác thực OTP 6 chữ số dưới đây:
+          </p>
+
+          <div style="display: inline-block; padding: 16px 32px; background-color: #fff7ed; border: 2px dashed #ea580c; border-radius: 12px; margin: 6px 0 20px 0;">
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #c2410c; font-family: 'Courier New', Courier, monospace;">
+              ${otp}
+            </span>
+          </div>
+
+          <p style="color: #ef4444; font-size: 13px; font-weight: 600; margin: 0 0 20px 0;">
+            ⏰ Mã xác thực này có hiệu lực trong vòng <strong>10 phút</strong>.
+          </p>
+
+          <div style="padding: 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #64748b; text-align: left; line-height: 1.5;">
+            🔒 <strong>Lưu ý bảo mật:</strong><br>
+            • Tuyệt đối không chia sẻ mã xác thực này cho bất kỳ ai khác.<br>
+            • Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này. Tài khoản của bạn vẫn an toàn tuyệt đối.
+          </div>
+        </div>
+
+        <div style="background-color: #f9fafb; padding: 16px; text-align: center; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8;">
+          © ${new Date().getFullYear()} Ca Làm Online — Nền tảng Xếp ca & Quản lý nhân sự cửa hàng.
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: `"Ca Làm Online" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: `[Ca Làm Online] Mã xác thực OTP đặt lại mật khẩu: ${otp}`,
+      html: htmlContent,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`📧 [EMAIL SENT] Đã gửi mã OTP đặt lại mật khẩu đến ${toEmail}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId, to: toEmail };
+  } catch (error) {
+    console.error(`📧 [EMAIL ERROR] Lỗi gửi email OTP đặt lại mật khẩu đến ${toEmail}:`, error.message);
+    return { success: false, error: error.message, to: toEmail };
+  }
+};
+

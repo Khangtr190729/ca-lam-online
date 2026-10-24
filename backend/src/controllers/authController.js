@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { sendPasswordResetOtpEmail } from '../services/emailService.js';
 
 /**
  * Tạo token JWT cho người dùng
@@ -229,3 +230,222 @@ export const getMe = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Yêu cầu mã xác thực OTP 6 số để đặt lại mật khẩu qua Email
+ * @route   POST /api/auth/forgot-password
+ * @access  Public
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp địa chỉ Email hợp lệ.',
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Định dạng email không hợp lệ. Vui lòng kiểm tra lại.',
+      });
+    }
+
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài khoản nào gắn với địa chỉ email này.',
+      });
+    }
+
+    // Sinh mã OTP 6 số ngẫu nhiên (từ 100000 đến 999999)
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // Có hiệu lực 10 phút
+
+    user.resetPasswordOtp = {
+      code: otp,
+      expiresAt,
+    };
+    await user.save();
+
+    // Gửi email chứa OTP
+    const emailResult = await sendPasswordResetOtpEmail({
+      toEmail: user.email,
+      userName: user.fullName,
+      otp,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Mã xác thực OTP 6 số đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư!',
+      simulated: emailResult.simulated || false,
+      devOtp: emailResult.simulated ? otp : undefined,
+    });
+  } catch (error) {
+    console.error('Lỗi yêu cầu quên mật khẩu:', error);
+    return res.status(500).json({
+      success: false,
+      message: `Lỗi máy chủ khi xử lý yêu cầu quên mật khẩu: ${error.message}`,
+    });
+  }
+};
+
+/**
+ * @desc    Kiểm tra / Xác nhận mã OTP 6 số hợp lệ
+ * @route   POST /api/auth/verify-reset-otp
+ * @access  Public
+ */
+export const verifyResetOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp || typeof email !== 'string' || typeof otp !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ Email và mã OTP 6 số.',
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài khoản tương ứng với email này.',
+      });
+    }
+
+    if (
+      !user.resetPasswordOtp ||
+      !user.resetPasswordOtp.code ||
+      !user.resetPasswordOtp.expiresAt
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Chưa có yêu cầu đặt lại mật khẩu nào cho email này hoặc mã đã bị hủy.',
+      });
+    }
+
+    if (new Date() > new Date(user.resetPasswordOtp.expiresAt)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã OTP đã hết thời hạn hiệu lực (chỉ có giá trị trong 10 phút). Vui lòng yêu cầu mã mới.',
+      });
+    }
+
+    if (user.resetPasswordOtp.code !== cleanOtp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã xác thực OTP không chính xác. Vui lòng kiểm tra kỹ hộp thư email!',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Xác thực mã OTP thành công! Bạn có thể đặt mật khẩu mới ngay.',
+    });
+  } catch (error) {
+    console.error('Lỗi xác thực mã OTP:', error);
+    return res.status(500).json({
+      success: false,
+      message: `Lỗi máy chủ khi xác thực OTP: ${error.message}`,
+    });
+  }
+};
+
+/**
+ * @desc    Xác nhận OTP và đổi mật khẩu mới cho tài khoản
+ * @route   POST /api/auth/reset-password
+ * @access  Public
+ */
+export const resetPasswordWithOtp = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (
+      !email ||
+      !otp ||
+      !newPassword ||
+      typeof email !== 'string' ||
+      typeof otp !== 'string' ||
+      typeof newPassword !== 'string'
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ: Email, mã OTP và Mật khẩu mới.',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mật khẩu mới phải có tối thiểu 6 ký tự để đảm bảo an toàn.',
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài khoản người dùng.',
+      });
+    }
+
+    if (
+      !user.resetPasswordOtp ||
+      !user.resetPasswordOtp.code ||
+      !user.resetPasswordOtp.expiresAt
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Yêu cầu đặt lại mật khẩu không hợp lệ hoặc đã hoàn tất trước đó.',
+      });
+    }
+
+    if (new Date() > new Date(user.resetPasswordOtp.expiresAt)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã OTP đã hết hạn hiệu lực. Vui lòng gửi yêu cầu mã mới.',
+      });
+    }
+
+    if (user.resetPasswordOtp.code !== cleanOtp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã xác thực OTP không chính xác. Không thể đổi mật khẩu.',
+      });
+    }
+
+    // Băm mật khẩu mới an toàn
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    // Hủy mã OTP sau khi đổi mật khẩu thành công
+    user.resetPasswordOtp = {
+      code: null,
+      expiresAt: null,
+    };
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Đặt lại mật khẩu thành công! Bạn có thể sử dụng mật khẩu mới để đăng nhập ngay bây giờ.',
+    });
+  } catch (error) {
+    console.error('Lỗi đặt lại mật khẩu:', error);
+    return res.status(500).json({
+      success: false,
+      message: `Lỗi máy chủ khi đặt lại mật khẩu: ${error.message}`,
+    });
+  }
+};
+

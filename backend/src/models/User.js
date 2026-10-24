@@ -39,6 +39,16 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    resetPasswordOtp: {
+      code: {
+        type: String,
+        default: null,
+      },
+      expiresAt: {
+        type: Date,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,
