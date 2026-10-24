@@ -50,13 +50,18 @@ export const AdminDashboardScreen = ({ navigation }) => {
       }
       if (scheduleRes?.success && scheduleRes.schedule) {
         const sched = scheduleRes.schedule;
-        const totalHours = sched.totalHours || 0;
-        const totalCost = sched.totalEstimatedCost || 0;
-        const count = sched.shifts?.length || 0;
+        const assignments = sched.assignments || [];
         const isPub = sched.status === 'PUBLISHED';
 
+        const totalHours = assignments.reduce((acc, a) => acc + (a.hours || 0), 0);
+        const totalCost = assignments.reduce((acc, a) => {
+          if (a.attendanceStatus === 'MISSED') return acc;
+          if (a.totalPay !== undefined) return acc + a.totalPay;
+          return acc + (a.hours || 0) * (a.hourlyWage || 20000);
+        }, 0);
+
         setWeeklyStats({
-          shiftCount: count,
+          shiftCount: assignments.length,
           totalHours,
           totalWageCost: totalCost,
           isPublished: isPub,
@@ -64,8 +69,32 @@ export const AdminDashboardScreen = ({ navigation }) => {
 
         // Filter shifts for today
         const todayStr = new Date().toISOString().split('T')[0];
-        const forToday = (sched.shifts || []).filter((s) => s.date === todayStr);
+        const todayAssignments = assignments.filter((a) => a.date === todayStr);
+
+        const storeShiftsList = shiftsRes?.shifts || [];
+        const forToday = storeShiftsList.map((s) => {
+          const sAssignments = todayAssignments.filter((a) => {
+            const aShiftId = a.shiftId?._id || a.shiftId;
+            return String(aShiftId) === String(s._id);
+          });
+          return {
+            _id: s._id,
+            shiftName: s.name,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            assignedEmployees: sAssignments,
+          };
+        }).filter((s) => s.assignedEmployees.length > 0);
+
         setTodayShifts(forToday);
+      } else {
+        setWeeklyStats({
+          shiftCount: 0,
+          totalHours: 0,
+          totalWageCost: 0,
+          isPublished: false,
+        });
+        setTodayShifts([]);
       }
     } catch (e) {
       console.warn('Dashboard data load error:', e.message);

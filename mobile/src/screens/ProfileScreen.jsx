@@ -1,4 +1,6 @@
+import React, { useState } from 'react';
 import {
+  View,
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,

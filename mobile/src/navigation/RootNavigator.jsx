@@ -12,7 +12,7 @@ import CreateStoreScreen from '../screens/admin/CreateStoreScreen';
 import SplashLoadingView from '../components/SplashLoadingView';
 
 export const RootNavigator = () => {
-  const { user, store, isLoading } = useAuth();
+  const { user, store, roleInStore, isAdmin, isLoading } = useAuth();
 
   // Loading Splash
   if (isLoading) {
@@ -24,18 +24,17 @@ export const RootNavigator = () => {
     return <AuthNavigator />;
   }
 
-  const isAdmin = user.systemRole === 'ADMIN';
-
   // Logged in but not joined / created any store yet
   if (!store) {
-    if (isAdmin) {
+    if (isAdmin || user.systemRole === 'ADMIN') {
       return <CreateStoreScreen />;
     }
     return <JoinStoreScreen />;
   }
 
   // Authenticated and has a store
-  if (isAdmin) {
+  const canManage = isAdmin || roleInStore === 'MANAGER';
+  if (canManage) {
     return <AdminAppNavigator />;
   }
 
