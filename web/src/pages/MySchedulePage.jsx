@@ -32,6 +32,7 @@ import {
   formatDateToISO,
   getWeekNumberAndYear
 } from '../utils/formatters';
+import { EmployeeShiftDetailModal } from '../components/employee/EmployeeShiftDetailModal';
 
 export const MySchedulePage = () => {
   const { user, store, roleInStore, refreshUser, logout } = useAuth();
@@ -640,33 +641,75 @@ export const MySchedulePage = () => {
                       </p>
                     </div>
                   ) : (
-                    shiftsForSelectedDate.map((item, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => setActiveShiftDetail(item)}
-                        className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-[#EA701B] transition cursor-pointer flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#EA701B] flex items-center justify-center font-bold text-xs shrink-0">
-                            <Clock className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-900">
-                              {item.shift?.name}
-                            </h4>
-                            <p className="text-[11px] text-slate-500 font-mono">
-                              {item.shift?.startTime} — {item.shift?.endTime} ({item.shift?.durationHours}h)
-                            </p>
-                          </div>
-                        </div>
+                    shiftsForSelectedDate.map((item, idx) => {
+                      const isMissed = item.attendanceStatus === 'MISSED';
+                      const isPartial = item.attendanceStatus === 'PARTIAL';
 
-                        {/* Coworkers badge */}
-                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                          <Users className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{item.coworkers?.length || 0} đồng nghiệp</span>
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => setActiveShiftDetail(item)}
+                          className={`p-4 rounded-2xl border shadow-xs hover:border-[#EA701B] transition cursor-pointer flex items-center justify-between ${
+                            isMissed
+                              ? 'bg-rose-50/50 border-rose-200'
+                              : isPartial
+                              ? 'bg-amber-50/50 border-amber-200'
+                              : 'bg-white border-slate-200/80'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                                isMissed
+                                  ? 'bg-rose-100 text-rose-600'
+                                  : isPartial
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-orange-100 text-[#EA701B]'
+                              }`}
+                            >
+                              <Clock className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h4
+                                  className={`text-xs font-bold ${
+                                    isMissed
+                                      ? 'line-through text-slate-400'
+                                      : 'text-slate-900'
+                                  }`}
+                                >
+                                  {item.shift?.name || item.shiftName}
+                                </h4>
+                                {isMissed && (
+                                  <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 text-[10px] font-bold">
+                                    Không hoàn thành
+                                  </span>
+                                )}
+                                {isPartial && (
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
+                                    Trừ -{formatVND(item.deductedPay || 0)}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                                {item.shift?.startTime || item.startTime} — {item.shift?.endTime || item.endTime} ({item.shift?.durationHours || item.hours}h)
+                                {isPartial && (
+                                  <span className="text-emerald-700 font-bold ml-1.5">
+                                    • Nhận: {formatVND(item.totalPay !== undefined ? item.totalPay : 0)}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Coworkers badge */}
+                          <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                            <Users className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{item.coworkers?.length || 0} đồng nghiệp</span>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -865,80 +908,11 @@ export const MySchedulePage = () => {
       )}
 
       {/* SHIFT DETAILS MODAL */}
-      {activeShiftDetail && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-backdrop-fade">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-modal-pop">
-            <div className="p-5 bg-[#FFF0E5] border-b border-orange-100">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#EA701B] uppercase tracking-wider">
-                  Chi tiết ca làm việc
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setActiveShiftDetail(null)}
-                  className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1"
-                >
-                  ✕
-                </button>
-              </div>
-              <h3 className="text-base font-extrabold text-slate-900 mt-1">
-                {activeShiftDetail.shift?.name}
-              </h3>
-            </div>
-
-            <div className="p-5 space-y-4 text-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <span className="text-slate-500">Ngày làm:</span>
-                <span className="font-bold text-slate-800 font-mono">{activeShiftDetail.date}</span>
-              </div>
-
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <span className="text-slate-500">Thời gian ca:</span>
-                <span className="font-bold text-slate-800 font-mono">
-                  {activeShiftDetail.shift?.startTime} — {activeShiftDetail.shift?.endTime} ({activeShiftDetail.shift?.durationHours} giờ)
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <span className="text-slate-500">Cơ sở làm việc:</span>
-                <span className="font-bold text-slate-800">{store?.name}</span>
-              </div>
-
-              <div>
-                <span className="text-slate-500 block mb-2 font-semibold">
-                  Đồng nghiệp cùng ca ({activeShiftDetail.coworkers?.length || 0}):
-                </span>
-                {!activeShiftDetail.coworkers || activeShiftDetail.coworkers.length === 0 ? (
-                  <p className="text-slate-400 italic text-[11px]">
-                    Bạn là nhân sự duy nhất được phân ca này.
-                  </p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {activeShiftDetail.coworkers.map((c) => (
-                      <div key={c._id} className="p-2 bg-slate-50 rounded-xl flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-orange-100 text-[#EA701B] font-bold text-[10px] flex items-center justify-center">
-                          {c.name ? c.name.charAt(0).toUpperCase() : 'U'}
-                        </div>
-                        <span className="font-semibold text-slate-800">{c.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
-              <button
-                type="button"
-                onClick={() => setActiveShiftDetail(null)}
-                className="w-full py-2.5 bg-[#EA701B] text-white font-bold rounded-xl text-xs"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EmployeeShiftDetailModal
+        activeShiftDetail={activeShiftDetail}
+        onClose={() => setActiveShiftDetail(null)}
+        storeName={store?.name}
+      />
     </div>
   );
 };
