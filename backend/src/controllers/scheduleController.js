@@ -426,7 +426,7 @@ export const autoGenerateSchedule = async (req, res) => {
       startDate,
       endDate,
       days,
-      staffPerShift = 1,
+      staffPerShift = 'AUTO_BY_STARS',
       maxShiftsPerDay = 1,
       preserveExisting = false,
       existingAssignments = [],

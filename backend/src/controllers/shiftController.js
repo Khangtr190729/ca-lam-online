@@ -122,7 +122,7 @@ export const getStoreShifts = async (req, res) => {
 export const createShift = async (req, res) => {
   try {
     const { storeId } = req.params;
-    const { name, startTime, endTime, durationHours, color } = req.body;
+    const { name, startTime, endTime, durationHours, color, peakLevel, stars } = req.body;
     const userId = req.user.id;
 
     const access = await verifyStoreAccess(storeId, userId);
@@ -156,6 +156,10 @@ export const createShift = async (req, res) => {
     // Luôn luôn tự động tính số giờ chính xác dựa trên startTime và endTime
     const hours = calculateHours(startTime.trim(), endTime.trim());
 
+    // Mức độ cao điểm: 1 (Bình thường), 2 (Khá cao điểm), 3 (Rất cao điểm)
+    const parsedPeak = parseInt(peakLevel ?? stars, 10);
+    const resolvedPeakLevel = !isNaN(parsedPeak) ? Math.min(3, Math.max(1, parsedPeak)) : 1;
+
     // Kiểm tra không cho phép tạo ca có khung giờ trùng/giao thoa với ca đã tồn tại trong quán
     const existingShifts = await Shift.find({ storeId });
     for (const existing of existingShifts) {
@@ -179,6 +183,7 @@ export const createShift = async (req, res) => {
       endTime: endTime.trim(),
       durationHours: hours,
       color: color || '#3B82F6',
+      peakLevel: resolvedPeakLevel,
     });
 
     return res.status(201).json({
@@ -203,7 +208,7 @@ export const createShift = async (req, res) => {
 export const updateShift = async (req, res) => {
   try {
     const { storeId, shiftId } = req.params;
-    const { name, startTime, endTime, durationHours, color } = req.body;
+    const { name, startTime, endTime, durationHours, color, peakLevel, stars } = req.body;
     const userId = req.user.id;
 
     const access = await verifyStoreAccess(storeId, userId);
@@ -243,19 +248,21 @@ export const updateShift = async (req, res) => {
     const targetStartTime = startTime ? startTime.trim() : shift.startTime;
     const targetEndTime = endTime ? endTime.trim() : shift.endTime;
 
-    // Kiểm tra không cho phép cập nhật khung giờ trùng/giao thoa với các ca khác trong quán
-    const otherShifts = await Shift.find({ storeId, _id: { $ne: shiftId } });
-    for (const other of otherShifts) {
-      if (
-        checkShiftOverlap(
-          { startTime: targetStartTime, endTime: targetEndTime },
-          other
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: `Khung giờ cập nhật (${targetStartTime} - ${targetEndTime}) bị trùng/giao thoa với ca "${other.name}" (${other.startTime} - ${other.endTime}). Các ca làm việc trong cửa hàng không được phép trùng khung giờ với nhau!`,
-        });
+    // Chỉ kiểm tra trùng giờ nếu có thay đổi startTime hoặc endTime
+    if (startTime || endTime) {
+      const otherShifts = await Shift.find({ storeId, _id: { $ne: shiftId } });
+      for (const other of otherShifts) {
+        if (
+          checkShiftOverlap(
+            { startTime: targetStartTime, endTime: targetEndTime },
+            other
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: `Khung giờ cập nhật (${targetStartTime} - ${targetEndTime}) bị trùng/giao thoa với ca "${other.name}" (${other.startTime} - ${other.endTime}). Các ca làm việc trong cửa hàng không được phép trùng khung giờ với nhau!`,
+          });
+        }
       }
     }
 
@@ -263,6 +270,14 @@ export const updateShift = async (req, res) => {
     if (startTime) shift.startTime = startTime.trim();
     if (endTime) shift.endTime = endTime.trim();
     if (color) shift.color = color;
+
+    // Cập nhật mức độ cao điểm (1, 2, hoặc 3 sao)
+    if (peakLevel !== undefined || stars !== undefined) {
+      const parsedPeak = parseInt(peakLevel ?? stars, 10);
+      if (!isNaN(parsedPeak)) {
+        shift.peakLevel = Math.min(3, Math.max(1, parsedPeak));
+      }
+    }
 
     // Luôn luôn tự động tính số giờ chính xác từ startTime và endTime của ca
     shift.durationHours = calculateHours(shift.startTime, shift.endTime);

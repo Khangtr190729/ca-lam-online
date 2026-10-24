@@ -97,6 +97,18 @@ Hệ thống được phát triển theo mô hình:
   - Khi lịch đã hoàn chỉnh, bấm nút **"Xác nhận & Gửi Email"**.
   - Hệ thống chốt lịch và tự động kích hoạt dịch vụ Email gửi đồng loạt đến từng nhân viên.
 
+### 5.5. Đánh Dấu Mức Độ Cao Điểm Của Ca (1 - 3 Sao) & Thuật Toán Tự Động Xếp Ca Thông Minh
+- **Mức độ sao cao điểm cho từng ca:**
+  - Mỗi ca làm việc (Slot) được gắn mức đánh giá cao điểm từ 1 đến 3 sao:
+    - ⭐ **1 sao (Mặc định):** Ca bình thường, lượng khách trung bình, chỉ cần cơ số nhân viên tiêu chuẩn (1 nhân sự).
+    - ⭐⭐ **2 sao:** Ca khá cao điểm, lượng khách đông hơn, hệ thống tự động điều phối thêm nhân sự khi cửa hàng có đủ người.
+    - ⭐⭐⭐ **3 sao:** Ca rất cao điểm (giờ vàng, đông khách nhất), được ưu tiên phân bổ số lượng nhân sự cao nhất.
+  - Quản lý có thể gắn sao trực tiếp tại trang **Ca làm** hoặc bấm trực tiếp vào các ngôi sao ở cột **"Khung Giờ / Ca"** trên lưới thời khóa biểu để điều chỉnh nhanh chóng.
+- **Thuật toán Tự động xếp lịch thông minh theo số sao:**
+  - **Dựa trên số lượng nhân sự thực tế của quán:** Thuật toán tự động tính toán định mức nhân sự cho từng ca theo số lượng nhân viên hiện có (`totalMembers`) và giới hạn số ca tối đa/ngày (`maxShiftsPerDay`), hoàn toàn dựa trên khả năng thực tế của quán.
+  - **Đảm bảo phủ đều & không dồn quá tải:** Hệ thống đảm bảo mọi ca đều có người trực (nếu quán đủ người), sau đó mới phân bổ nhân sự dôi dư vào ca 3 sao và 2 sao theo trần hợp lý (sensible cap), tuyệt đối không nhồi nhét toàn bộ nhân viên vào một ca khi không cần thiết.
+  - **Cân bằng tải công bằng (Fair Workload):** Luôn chia đều tổng số ca và tổng số giờ làm việc giữa các nhân viên trong tuần, chống trùng lịch và bảo toàn các ca đã qua trong quá khứ.
+
 ---
 
 ## 6. Hệ Thống Email Tự Động (3 Mẫu Email Chính)

@@ -31,6 +31,11 @@ const shiftSchema = new mongoose.Schema(
       type: String,
       default: '#3B82F6',
     },
+    peakLevel: {
+      type: Number,
+      enum: [1, 2, 3],
+      default: 1,
+    },
   },
   {
     timestamps: true,

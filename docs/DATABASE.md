@@ -80,6 +80,7 @@ Hệ thống sử dụng **MongoDB Atlas** với **5 bảng chính** phục vụ
 | `endTime` | String | Có | Giờ kết thúc (Ví dụ: `"11:30"`) |
 | `durationHours` | Number | Có | Tổng số giờ của ca (Ví dụ: `4.5` tiếng). Dùng để nhân ra tiền lương |
 | `color` | String | Không | Màu hiển thị trên bảng thời khóa biểu tuần |
+| `peakLevel` | Number | Không | **Mức độ cao điểm của ca (1 đến 3 sao)**: `1` (Bình thường - mặc định), `2` (Khá cao điểm), `3` (Rất cao điểm). Phục vụ thuật toán tự động phân bổ nhân sự |
 
 ---
 

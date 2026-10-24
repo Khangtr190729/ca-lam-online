@@ -57,9 +57,9 @@ Tài liệu này tổng hợp toàn bộ các RESTful API hiện có của hệ 
 
 | Method | Endpoint | Yêu cầu Token | Quyền hạn | Chức năng |
 |---|---|:---:|---|---|
-| `GET` | `/api/stores/:storeId/shifts` | ✅ | Mọi thành viên quán | Lấy danh sách toàn bộ các Slot ca làm của quán |
-| `POST` | `/api/stores/:storeId/shifts` | ✅ | `ADMIN` / `MANAGER` | Tạo mới Slot ca làm (Tên slot, giờ vào, giờ ra - Tự động tính số tiếng `durationHours`) |
-| `PUT` | `/api/stores/:storeId/shifts/:shiftId` | ✅ | `ADMIN` / `MANAGER` | Chỉnh sửa Slot ca làm việc |
+| `GET` | `/api/stores/:storeId/shifts` | ✅ | Mọi thành viên quán | Lấy danh sách toàn bộ các Slot ca làm của quán kèm `peakLevel` (1 - 3 sao) |
+| `POST` | `/api/stores/:storeId/shifts` | ✅ | `ADMIN` / `MANAGER` | Tạo mới Slot ca làm (Tên slot, giờ vào, giờ ra, `peakLevel`: 1-3 sao, tự động tính `durationHours`) |
+| `PUT` | `/api/stores/:storeId/shifts/:shiftId` | ✅ | `ADMIN` / `MANAGER` | Chỉnh sửa Slot ca làm việc / Đổi nhanh số sao cao điểm (`peakLevel`) |
 | `DELETE` | `/api/stores/:storeId/shifts/:shiftId` | ✅ | `ADMIN` / `MANAGER` | Xóa Slot ca làm việc khỏi quán |
 
 ---
@@ -70,6 +70,7 @@ Tài liệu này tổng hợp toàn bộ các RESTful API hiện có của hệ 
 |---|---|:---:|---|---|
 | `GET` | `/api/stores/:storeId/schedules` | ✅ | Mọi thành viên quán | Lấy bảng lịch tuần theo tham số `?week=43&year=2026`, kèm bảng tổng hợp lương nhân viên |
 | `POST` | `/api/stores/:storeId/schedules/save-draft` | ✅ | `ADMIN` / `MANAGER` | **Lưu Bản Nháp (`DRAFT`)**: Xếp ca cho nhân viên (hoặc Quản lý tự xếp cho mình), tự động tính lương tuần |
+| `POST` | `/api/stores/:storeId/schedules/auto-generate` | ✅ | `ADMIN` / `MANAGER` | **Tự động xếp lịch thông minh**: Tự động phân bổ nhân sự theo mức độ sao cao điểm của từng ca (`AUTO_BY_STARS`) và quy mô nhân sự quán |
 | `POST` | `/api/stores/:storeId/schedules/publish` | ✅ | `ADMIN` / `MANAGER` | **Xác nhận Xuất bản (`PUBLISHED`)**: Chốt lịch tuần & **Tự động gửi Email** lịch trực kèm tiền lương đến từng nhân viên |
 | `GET` | `/api/schedules/my-schedule` | ✅ | `EMPLOYEE` | **Nhân viên xem lịch cá nhân tuần này**: Xem các ca trực của riêng mình và tổng số tiền lương nhận được |
 

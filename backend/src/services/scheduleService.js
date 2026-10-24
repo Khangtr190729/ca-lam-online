@@ -349,6 +349,96 @@ export const calculateSalarySummaryFromAssignments = (assignments) => {
 };
 
 /**
+ * Thuật toán tính toán số lượng nhân sự mục tiêu cho từng ca:
+ * Dựa trên mức độ cao điểm (1-3 sao) của từng ca và quy mô nhân sự quán.
+ * Quy tắc:
+ * 1. Đảm bảo độ phủ cơ bản (1 nhân viên cho mỗi ca nếu quán đủ người).
+ * 2. Nhân sự dôi dư được ưu tiên phân bổ cho ca 3 sao (Rất cao điểm), sau đó đến ca 2 sao (Khá cao điểm).
+ * 3. Giới hạn trần hợp lý (sensible cap) theo mức sao để tránh dồn hết nhân sự vào 1 ca không cần thiết.
+ * 4. Nếu quán có ít nhân viên hơn số ca trong ngày, ưu tiên ca có số sao cao nhất.
+ */
+export const calculateShiftStaffTargets = ({
+  shifts,
+  totalStaffCount,
+  maxShiftsPerDay = 1,
+  staffPerShift = 'AUTO_BY_STARS',
+}) => {
+  const targets = {};
+  if (!Array.isArray(shifts) || shifts.length === 0) return targets;
+
+  // Nếu người dùng chọn cố định số nhân viên (ví dụ: fixed 1, 2, 3)
+  const numericMode = parseInt(staffPerShift, 10);
+  if (!isNaN(numericMode) && numericMode > 0 && staffPerShift !== 'AUTO_BY_STARS') {
+    shifts.forEach((s) => {
+      targets[s._id.toString()] = numericMode;
+    });
+    return targets;
+  }
+
+  const shiftCount = shifts.length;
+  // Khả năng cung cấp nhân sự tối đa trong 1 ngày mà không vượt quá maxShiftsPerDay
+  const dailyCapacity = totalStaffCount * Math.max(1, maxShiftsPerDay);
+
+  shifts.forEach((s) => {
+    targets[s._id.toString()] = 0;
+  });
+
+  if (totalStaffCount <= 0) return targets;
+
+  // Sắp xếp các ca theo mức độ cao điểm giảm dần (3 sao -> 2 sao -> 1 sao)
+  const sortedShifts = [...shifts].sort((a, b) => (b.peakLevel || 1) - (a.peakLevel || 1));
+
+  // Trường hợp quán quá ít nhân sự (ít hơn số ca):
+  if (dailyCapacity < shiftCount) {
+    for (let i = 0; i < dailyCapacity; i++) {
+      targets[sortedShifts[i]._id.toString()] = 1;
+    }
+    return targets;
+  }
+
+  // Bước 1: Đảm bảo cơ số tối thiểu: Mỗi ca nhận 1 nhân viên
+  shifts.forEach((s) => {
+    targets[s._id.toString()] = 1;
+  });
+  let remainingCapacity = dailyCapacity - shiftCount;
+
+  // Bước 2: Thiết lập trần nhân sự tối đa cho mỗi mức sao để không nhồi nhét quá tải vào 1 ca:
+  // - 1 sao (Bình thường): trần 1 (trừ khi quán rất đông nhân sự >= 4*K thì trần 2)
+  // - 2 sao (Khá cao điểm): trần 2 (nếu quán đông nhân sự >= 3*K thì trần 3)
+  // - 3 sao (Rất cao điểm): trần 3 (nếu quán đông nhân sự >= 3*K thì trần 4)
+  const getCap = (peak) => {
+    if (peak >= 3) return totalStaffCount >= shiftCount * 3 ? 4 : 3;
+    if (peak === 2) return totalStaffCount >= shiftCount * 3 ? 3 : 2;
+    return totalStaffCount >= shiftCount * 4 ? 2 : 1;
+  };
+
+  // Bước 3: Phân bổ nhân sự dôi dư theo thứ tự ưu tiên số sao:
+  while (remainingCapacity > 0) {
+    const eligibleShifts = sortedShifts.filter((s) => {
+      const p = s.peakLevel || 1;
+      const current = targets[s._id.toString()] || 0;
+      return current < getCap(p);
+    });
+
+    if (eligibleShifts.length === 0) {
+      // Đã đạt trần hợp lý cho tất cả các ca, dừng phân bổ để tránh nhồi nhét nhân viên vào 1 ca
+      break;
+    }
+
+    const highestPeakInPool = Math.max(...eligibleShifts.map((s) => s.peakLevel || 1));
+    const pool = eligibleShifts.filter((s) => (s.peakLevel || 1) === highestPeakInPool);
+
+    pool.sort((a, b) => targets[a._id.toString()] - targets[b._id.toString()]);
+    const chosen = pool[0];
+
+    targets[chosen._id.toString()] += 1;
+    remainingCapacity--;
+  }
+
+  return targets;
+};
+
+/**
  * Service: Thuật toán tự động xếp ca làm việc thông minh & cân bằng tải (Fair Scheduling)
  */
 export const generateAutoSchedule = async ({
@@ -358,7 +448,7 @@ export const generateAutoSchedule = async ({
   startDate,
   endDate,
   days,
-  staffPerShift = 1,
+  staffPerShift = 'AUTO_BY_STARS',
   maxShiftsPerDay = 1,
   preserveExisting = false,
   existingAssignments = [],
@@ -439,10 +529,6 @@ export const generateAutoSchedule = async ({
   const isPublishedSchedule = existingSchedule?.status === 'PUBLISHED';
   const passedKeySet = new Set();
 
-  // 1. Chỉ tự động giữ lại các ca đã qua NẾU:
-  // - Lịch này ĐÃ ĐƯỢC XUẤT BẢN (PUBLISHED): nhân viên đã làm việc thực tế
-  // - HOẶC người dùng bật tùy chọn "Giữ lại các ca đã xếp thủ công hiện tại" (preserveExisting === true)
-  // Nếu là lịch nháp (DRAFT) và preserveExisting === false: BỎ QUA toàn bộ ngày/ca đã qua, để trống ngày nghỉ / ca đã qua, không xếp và không tính lương!
   if (isPublishedSchedule || preserveExisting) {
     const sourceAssignments = isPublishedSchedule
       ? (existingSchedule?.assignments || [])
@@ -501,22 +587,35 @@ export const generateAutoSchedule = async ({
     }
   }
 
-  const targetStaffPerShift = Math.max(1, parseInt(staffPerShift, 10) || 1);
   const maxPerDay = Math.max(1, parseInt(maxShiftsPerDay, 10) || 1);
   const todayStr = getTodayDateString();
   const currentVNTime = getCurrentVNTime();
   const currentVNMins = timeToMinutes(currentVNTime);
+
+  // Tính toán định mức nhân sự cho từng ca dựa trên mức độ cao điểm (sao ⭐)
+  const shiftStaffTargets = calculateShiftStaffTargets({
+    shifts,
+    totalStaffCount: validMembers.length,
+    maxShiftsPerDay: maxPerDay,
+    staffPerShift,
+  });
 
   // 3. Thuật toán phân bổ ca tối ưu
   for (const day of weekDays) {
     // Bỏ qua các ngày đã qua trong quá khứ (ví dụ: đã qua Thứ Hai thì bỏ qua Thứ Hai)
     if (day.date < todayStr) continue;
 
-    for (const shift of shifts) {
+    // Sắp xếp các ca trong ngày theo mức độ cao điểm giảm dần (3 sao -> 2 sao -> 1 sao)
+    // để các ca đông khách nhất được ưu tiên bố trí nhân sự phù hợp trước
+    const prioritizedShifts = [...shifts].sort(
+      (a, b) => (b.peakLevel || 1) - (a.peakLevel || 1)
+    );
+
+    for (const shift of prioritizedShifts) {
       // Bỏ qua các ca đã qua trong quá khứ
       if (isShiftTimePassed(day.date, shift)) continue;
 
-      // Nếu là hôm nay: bỏ qua ca nếu ca đã bắt đầu hoặc kết thúc (ví dụ: qua ca sáng Thứ Ba thì bỏ qua ca sáng)
+      // Nếu là hôm nay: bỏ qua ca nếu ca đã bắt đầu hoặc kết thúc
       if (day.date === todayStr) {
         const startMins = timeToMinutes(shift.startTime);
         if (currentVNMins >= startMins) continue;
@@ -526,7 +625,8 @@ export const generateAutoSchedule = async ({
       const currentAssigned = workingAssignments.filter(
         (a) => a.date === day.date && a.shiftId.toString() === sId
       );
-      let needed = targetStaffPerShift - currentAssigned.length;
+      const targetForThisShift = shiftStaffTargets[sId] || 1;
+      let needed = targetForThisShift - currentAssigned.length;
 
       while (needed > 0) {
         const eligibleCandidates = validMembers.filter((m) => {
