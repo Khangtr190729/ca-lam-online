@@ -28,13 +28,16 @@ body {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: #F8FAFC;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #CBD5E1;
   border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
@@ -49,6 +52,7 @@ body {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -60,9 +64,11 @@ body {
     opacity: 0;
     transform: scale(0.92) translateY(14px);
   }
+
   75% {
     transform: scale(1.01) translateY(-1px);
   }
+
   100% {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -74,6 +80,7 @@ body {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -85,6 +92,7 @@ body {
     opacity: 0;
     transform: translateY(-8px) scale(0.94);
   }
+
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -93,9 +101,12 @@ body {
 
 /* 5. Breathing subtle glow */
 @keyframes subtleGlow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(234, 112, 27, 0.25);
   }
+
   50% {
     box-shadow: 0 0 20px 4px rgba(234, 112, 27, 0.35);
   }
@@ -103,10 +114,13 @@ body {
 
 /* 6. Pulse subtle & Badge Glow */
 @keyframes pulseSubtle {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.78;
     transform: scale(1.05);
@@ -114,9 +128,12 @@ body {
 }
 
 @keyframes badgeGlow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(234, 112, 27, 0.45);
   }
+
   50% {
     box-shadow: 0 0 0 8px rgba(234, 112, 27, 0);
   }
@@ -162,6 +179,7 @@ body {
 .hover-lift {
   transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s ease;
 }
+
 .hover-lift:hover {
   transform: translateY(-4px);
   box-shadow: 0 14px 28px -6px rgba(234, 112, 27, 0.18), 0 6px 14px -3px rgba(0, 0, 0, 0.08);
@@ -172,6 +190,7 @@ body {
   cursor: pointer;
   user-select: none;
 }
+
 .btn-press:active {
   transform: scale(0.93);
 }
@@ -179,6 +198,7 @@ body {
 .card-interactive {
   transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s ease;
 }
+
 .card-interactive:hover {
   transform: translateY(-3px);
   border-color: #EA701B;
@@ -193,13 +213,25 @@ body {
 }
 
 /* Staggered load utilities */
-.stagger-1 { animation-delay: 30ms; }
-.stagger-2 { animation-delay: 60ms; }
-.stagger-3 { animation-delay: 90ms; }
-.stagger-4 { animation-delay: 120ms; }
+.stagger-1 {
+  animation-delay: 30ms;
+}
+
+.stagger-2 {
+  animation-delay: 60ms;
+}
+
+.stagger-3 {
+  animation-delay: 90ms;
+}
+
+.stagger-4 {
+  animation-delay: 120ms;
+}
 
 /* Accessibility: Respect Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   ::before,
   ::after {

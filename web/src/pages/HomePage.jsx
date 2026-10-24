@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -24,15 +24,57 @@ import {
   HeartHandshake,
   Check,
   TrendingUp,
+  Smartphone,
+  Download,
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
 
+// Official Apple logo SVG
+const AppleLogo = ({ className = 'w-6 h-6' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.44c.59-.73 1-1.74.88-2.75-.86.04-1.92.58-2.53 1.3-.54.63-.99 1.66-.86 2.65.96.08 1.93-.49 2.51-1.2z" />
+  </svg>
+);
+
+// Official Google Play (CH Play) logo SVG
+const GooglePlayLogo = ({ className = 'w-6 h-6' }) => (
+  <svg className={className} viewBox="0 0 24 24">
+    <path
+      fill="#4285F4"
+      d="M3.6 1.8c-.2.2-.4.6-.4 1.1v18.2c0 .5.2.9.4 1.1l10.4-10.2L3.6 1.8z"
+    />
+    <path
+      fill="#FBBC04"
+      d="M17.5 14.5l-3.5-2.5-10.4 10.2c.4.4 1.1.5 1.8.1l12.1-7.8z"
+    />
+    <path
+      fill="#EA4335"
+      d="M17.5 9.5L5.4 1.7C4.7 1.3 4 1.4 3.6 1.8l10.4 10.2 3.5-2.5z"
+    />
+    <path
+      fill="#34A853"
+      d="M21.3 11.2l-3.8-2.4-3.5 3.2 3.5 3.2 3.8-2.4c.7-.4.7-1.2 0-1.6z"
+    />
+  </svg>
+);
+
 export const HomePage = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeFaq, setActiveFaq] = useState(null);
+
+  // Máy nào còn thời hạn token thì chuyển thẳng vào trong ứng dụng
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === 'EMPLOYEE') {
+        navigate('/my-schedule', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [user, loading, navigate]);
 
   // Scroll to section helper
   const scrollToSection = (id) => {
@@ -43,13 +85,14 @@ export const HomePage = () => {
     }
   };
 
-  const handleDashboardRedirect = () => {
-    if (user?.role === 'EMPLOYEE') {
-      navigate('/my-schedule');
-    } else {
-      navigate('/dashboard');
-    }
-  };
+  // Màn hình chờ nhẹ nếu thiết bị đang có sẵn token và đang xác thực
+  if (loading && localStorage.getItem('ca_lam_token')) {
+    return (
+      <div className="min-h-screen bg-[#FFF7F0] flex items-center justify-center font-['Be_Vietnam_Pro',sans-serif]">
+        <div className="w-8 h-8 border-3 border-[#EA701B] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const faqs = [
     {
@@ -57,12 +100,16 @@ export const HomePage = () => {
       a: 'Chủ cửa hàng tạo tài khoản, tạo quán và các ca làm việc mẫu. Sau đó mời nhân viên qua mã 6 số hoặc email. Quản lý có thể xếp ca thủ công hoặc bấm "Tự động xếp lịch", hệ thống sẽ chia đều ca, chống trùng lịch và tự động gửi email thông báo kèm bảng lương ước tính tới từng nhân viên khi xuất bản.',
     },
     {
+      q: 'Làm thế nào để tải ứng dụng về điện thoại cho nhân viên?',
+      a: 'Bạn chỉ cần bấm nút "Tải App" trên thanh menu để cuộn nhanh xuống phần tải ứng dụng ngay trên footer, sau đó bấm chọn "App Store (iOS)" hoặc "Google Play (CH Play)" để cài đặt.',
+    },
+    {
       q: 'Nhân viên có cần phải trả phí để xem lịch làm việc không?',
-      a: 'Hoàn toàn miễn phí! Nhân viên chỉ cần đăng ký tài khoản với vai trò "Người đi làm", nhập mã mời của quán là có thể tra cứu lịch làm cá nhân, xem dự toán lương và nhận thông báo ca trực tự động qua email.',
+      a: 'Hoàn toàn miễn phí! Nhân viên chỉ cần tải app hoặc truy cập web, đăng ký vai trò "Người đi làm", nhập mã mời của quán là có thể tra cứu lịch làm cá nhân, xem dự toán lương và nhận thông báo ca trực tự động qua email.',
     },
     {
       q: 'Quản lý cửa hàng có thể được xếp ca làm việc không?',
-      a: 'Có! Hệ thống hỗ trợ mô hình Quản lý kiêm nhân viên bán hàng / trực ca. Quản lý vừa có quyền điều phối xếp ca cho quán, vừa có thể được phân ca và theo dõi ca trực riêng trong màn hình "Lịch làm của tôi".',
+      a: 'Có! Hệ thống hỗ trợ mô hình Quản lý kiêm nhân viên bán hàng / trực ca. Quản lý vừa có quyền điều phối xếp ca cho quán, vừa có thể được phân ca và theo dõi ca trực riêng trong ứng dụng di động hoặc màn hình "Lịch làm của tôi".',
     },
     {
       q: 'Tính năng đánh giá ca làm và trừ lương hoạt động ra sao?',
@@ -85,7 +132,7 @@ export const HomePage = () => {
           </Link>
 
           {/* Desktop Nav Links */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
+          <nav className="hidden md:flex items-center gap-7 text-sm font-semibold text-slate-600">
             <button
               type="button"
               onClick={() => scrollToSection('features')}
@@ -99,6 +146,14 @@ export const HomePage = () => {
               className="hover:text-[#EA701B] transition-colors cursor-pointer"
             >
               Quy trình
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection('download-app')}
+              className="hover:text-[#EA701B] transition-colors cursor-pointer flex items-center gap-1.5 text-[#EA701B] font-bold"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>Tải App</span>
             </button>
             <button
               type="button"
@@ -125,32 +180,25 @@ export const HomePage = () => {
 
           {/* Desktop Auth CTAs */}
           <div className="hidden sm:flex items-center gap-3">
-            {user ? (
-              <button
-                type="button"
-                onClick={handleDashboardRedirect}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-md shadow-orange-500/20 btn-press hover-lift transition-all"
-              >
-                <span>Vào trang quản lý</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="px-4 py-2.5 text-xs font-bold text-slate-700 hover:text-[#EA701B] hover:bg-orange-50 rounded-xl transition-colors btn-press"
-                >
-                  Đăng nhập
-                </Link>
-                <Link
-                  to="/register"
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-md shadow-orange-500/20 btn-press hover-lift transition-all"
-                >
-                  <span>Bắt đầu miễn phí</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </>
-            )}
+            {/* Quick Download App Action */}
+            <button
+              id="btn-nav-download"
+              type="button"
+              onClick={() => scrollToSection('download-app')}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 hover:border-orange-300 text-xs font-bold text-slate-700 hover:text-[#EA701B] bg-slate-50 hover:bg-orange-50/60 btn-press transition"
+              title="Cuộn xuống để tải ứng dụng cho điện thoại"
+            >
+              <Download className="w-3.5 h-3.5 text-[#EA701B]" />
+              <span>Tải App</span>
+            </button>
+
+            <Link
+              to="/login"
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-bold rounded-xl shadow-md shadow-orange-500/20 btn-press hover-lift transition-all"
+            >
+              <span>Đăng nhập</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
           {/* Mobile Hamburger Toggle */}
@@ -177,6 +225,17 @@ export const HomePage = () => {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  scrollToSection('download-app');
+                }}
+                className="text-left py-2 text-[#EA701B] font-bold flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                <span>Tải ứng dụng di động (iOS & Android)</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => scrollToSection('how-it-works')}
                 className="text-left py-2 hover:text-[#EA701B]"
               >
@@ -198,32 +257,13 @@ export const HomePage = () => {
               </button>
             </nav>
             <div className="pt-4 border-t border-slate-100 flex flex-col gap-2.5">
-              {user ? (
-                <button
-                  type="button"
-                  onClick={handleDashboardRedirect}
-                  className="w-full py-3 bg-[#EA701B] text-white text-center text-xs font-bold rounded-xl btn-press"
-                >
-                  Vào trang quản lý
-                </button>
-              ) : (
-                <>
-                  <Link
-                    to="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full py-2.5 border border-slate-200 text-slate-800 text-center text-xs font-bold rounded-xl btn-press"
-                  >
-                    Đăng nhập
-                  </Link>
-                  <Link
-                    to="/register"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full py-2.5 bg-[#EA701B] text-white text-center text-xs font-bold rounded-xl shadow-md btn-press"
-                  >
-                    Tạo tài khoản miễn phí
-                  </Link>
-                </>
-              )}
+              <Link
+                to="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full py-2.5 bg-[#EA701B] text-white text-center text-xs font-bold rounded-xl shadow-md btn-press"
+              >
+                Đăng nhập
+              </Link>
             </div>
           </div>
         )}
@@ -251,7 +291,7 @@ export const HomePage = () => {
 
           {/* Subtitle */}
           <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed animate-page-enter">
-            Giải pháp thay thế hoàn toàn việc xếp ca bằng giấy bút và Excel thủ công. Tối ưu thời gian,
+            Giải pháp thay thế hoàn toàn việc xếp ca bằng giấy bút và bảng tính thủ công. Tối ưu thời gian,
             ngăn chặn trùng ca thời gian thực, đánh giá ca làm và tự động gửi email lịch trực kèm bảng
             lương chỉ với 1 cú nhấp chuột.
           </p>
@@ -259,10 +299,10 @@ export const HomePage = () => {
           {/* Action CTAs */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2 animate-page-enter">
             <Link
-              to="/register"
+              to="/login"
               className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-sm font-extrabold rounded-2xl shadow-xl shadow-orange-500/30 btn-press hover-lift transition-all"
             >
-              <span>Bắt đầu miễn phí ngay</span>
+              <span>Đăng nhập ngay</span>
               <ArrowRight className="w-5 h-5" />
             </Link>
             <button
@@ -276,7 +316,7 @@ export const HomePage = () => {
           </div>
 
           {/* Value check pills */}
-          <div className="pt-2 flex flex-wrap items-center justify-center gap-6 text-xs font-semibold text-slate-600">
+          <div className="pt-4 flex flex-wrap items-center justify-center gap-6 text-xs font-semibold text-slate-600">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>Không cần cài đặt phức tạp</span>
@@ -287,7 +327,7 @@ export const HomePage = () => {
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Tương thích 100% PC & Điện thoại</span>
+              <span>Dễ dàng dùng trên điện thoại & máy tính</span>
             </div>
           </div>
 
@@ -307,7 +347,7 @@ export const HomePage = () => {
                   <span className="w-3 h-3 rounded-full bg-amber-400" />
                   <span className="w-3 h-3 rounded-full bg-emerald-400" />
                   <span className="text-xs font-bold text-slate-500 ml-3">
-                    Lịch làm việc tuần — Chi nhánh Shop Trái Cây
+                    Lịch làm việc tuần
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -608,9 +648,9 @@ export const HomePage = () => {
               <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
                 <Mail className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">Dịch vụ Email tự động</h3>
+              <h3 className="text-base font-bold text-slate-900">Email thông báo tự động</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Mẫu email HTML thiết kế cao cấp, tự động gửi lịch trực và bảng lương chi tiết tới từng
+                Tự động gửi thông báo lịch làm việc đẹp mắt, rõ ràng kèm bảng lương chi tiết đến từng
                 nhân sự ngay khi lịch tuần được xuất bản.
               </p>
             </div>
@@ -620,7 +660,7 @@ export const HomePage = () => {
               <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center">
                 <Users className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">Phân quyền 3 vai trò chặt chẽ</h3>
+              <h3 className="text-base font-bold text-slate-900">Phân quyền 3 vai trò rõ ràng</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
                 Chủ cửa hàng (toàn quyền quản trị), Quản lý (xếp ca và có thể trực ca), và Nhân viên
                 (tra cứu lịch cá nhân trên web và điện thoại).
@@ -640,7 +680,7 @@ export const HomePage = () => {
             Vận hành chỉ với 3 bước đơn giản
           </h2>
           <p className="text-sm text-slate-600">
-            Không cần tài liệu hướng dẫn phức tạp, bạn có thể đưa quán vào hoạt động ngay trong 5 phút.
+            Không cần hướng dẫn phức tạp, bạn có thể đưa quán vào hoạt động ngay trong vài phút.
           </p>
         </div>
 
@@ -650,7 +690,7 @@ export const HomePage = () => {
             <span className="text-4xl font-extrabold text-orange-200 font-mono">01</span>
             <h3 className="text-base font-bold text-slate-900">Tạo quán & Định nghĩa ca làm</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Nhập tên quán, tạo các ca làm chuẩn (Ca Sáng, Ca Tối, Slot 1...) và gán mức lương theo giờ
+              Nhập tên quán, tạo các ca làm chuẩn (Ca Sáng, Ca Chiều, Ca Tối...) và gán mức lương theo giờ
               cho các nhân viên.
             </p>
           </div>
@@ -677,7 +717,7 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* 8. TESTIMONIALS */}
+      {/* 9. TESTIMONIALS */}
       <section id="testimonials" className="py-20 bg-white border-y border-orange-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
@@ -744,7 +784,7 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* 9. FAQ ACCORDION */}
+      {/* 10. FAQ ACCORDION */}
       <section id="faq" className="py-20 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-4 mb-14">
           <span className="text-xs font-extrabold text-[#EA701B] uppercase tracking-wider bg-orange-100/80 px-3 py-1 rounded-full">
@@ -770,9 +810,8 @@ export const HomePage = () => {
                 >
                   <span>{faq.q}</span>
                   <ChevronDown
-                    className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${
-                      isOpen ? 'rotate-180 text-[#EA701B]' : ''
-                    }`}
+                    className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180 text-[#EA701B]' : ''
+                      }`}
                   />
                 </button>
                 {isOpen && (
@@ -786,67 +825,142 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* 10. BIG CALL TO ACTION BANNER */}
-      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-br from-[#EA701B] via-orange-600 to-[#D55E0D] rounded-3xl p-8 sm:p-14 text-white text-center space-y-6 shadow-2xl shadow-orange-500/30 relative overflow-hidden">
-          {/* Decorative circles */}
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full blur-xl pointer-events-none" />
-          <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-white/10 rounded-full blur-xl pointer-events-none" />
+      {/* 11. COMBINED CTA & APP DOWNLOAD SECTION - RIGHT ABOVE FOOTER */}
+      <section id="download-app" className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 rounded-3xl p-8 sm:p-12 lg:p-14 text-white shadow-2xl relative overflow-hidden border border-slate-800">
+          {/* Subtle warm glow background */}
+          <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-gradient-to-bl from-orange-500/20 via-amber-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight max-w-2xl mx-auto">
-            Sẵn sàng nâng tầm quản lý ca làm cho cửa hàng của bạn?
-          </h2>
-          <p className="text-xs sm:text-sm text-orange-100 max-w-xl mx-auto leading-relaxed">
-            Tham gia cùng hàng trăm chủ quán thông minh đang tiết kiệm hàng giờ mỗi tuần với Ca Làm Online.
-            Đăng ký chỉ mất 30 giây!
-          </p>
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              to="/register"
-              className="w-full sm:w-auto px-8 py-3.5 bg-white text-[#EA701B] text-xs font-extrabold rounded-xl shadow-lg hover:bg-orange-50 btn-press hover-lift transition"
-            >
-              Tạo tài khoản miễn phí ngay
-            </Link>
-            <Link
-              to="/login"
-              className="w-full sm:w-auto px-6 py-3.5 bg-orange-700/60 hover:bg-orange-700 text-white text-xs font-bold rounded-xl border border-orange-400/40 btn-press transition"
-            >
-              Đăng nhập hệ thống
-            </Link>
+          <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
+            {/* Left Content */}
+            <div className="space-y-4 text-center lg:text-left max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold border border-orange-500/30">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Bắt đầu quản lý ca làm thông minh</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+                Sẵn sàng nâng tầm quản lý ca làm cho cửa hàng?
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
+                Tiết kiệm hàng giờ xếp ca mỗi tuần, tính lương chuẩn xác và gửi thông báo lịch làm tự động. Đăng nhập ngay trên máy tính hoặc tải ứng dụng cho điện thoại di động.
+              </p>
+            </div>
+
+            {/* Right Action Buttons: Nút Đăng nhập & 2 Nút Store */}
+            <div className="flex flex-col sm:flex-row items-center gap-3.5 shrink-0 w-full lg:w-auto justify-center">
+              {/* Nút Đăng nhập */}
+              <Link
+                to="/login"
+                className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-7 py-3.5 bg-[#EA701B] hover:bg-[#D55E0D] text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-orange-500/30 btn-press hover-lift transition-all"
+              >
+                <span>Đăng nhập ngay</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+
+              {/* Nút 1: App Store (iOS) */}
+              <a
+                id="btn-download-appstore"
+                href="https://apps.apple.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto flex items-center justify-center gap-3 px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 text-white rounded-2xl shadow-md btn-press hover-lift transition-all text-left group"
+              >
+                <AppleLogo className="w-6 h-6 fill-current text-white shrink-0 group-hover:scale-105 transition-transform" />
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400 font-medium leading-none">
+                    Tải về trên
+                  </span>
+                  <span className="text-xs font-extrabold text-white leading-tight mt-0.5">
+                    App Store (iOS)
+                  </span>
+                </div>
+              </a>
+
+              {/* Nút 2: Google Play (CH Play) */}
+              <a
+                id="btn-download-chplay"
+                href="https://play.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto flex items-center justify-center gap-3 px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 text-white rounded-2xl shadow-md btn-press hover-lift transition-all text-left group"
+              >
+                <GooglePlayLogo className="w-5 h-5 shrink-0 group-hover:scale-105 transition-transform" />
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400 font-medium leading-none">
+                    Tải về trên
+                  </span>
+                  <span className="text-xs font-extrabold text-white leading-tight mt-0.5">
+                    Google Play (CH Play)
+                  </span>
+                </div>
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 11. FOOTER */}
+      {/* 13. FOOTER */}
       <footer className="bg-white border-t border-orange-100 py-12 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <Logo size="sm" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-2">
+              <Logo size="sm" />
+            </div>
+
+            {/* App Store & CH Play Badges in Footer */}
+            <div className="flex items-center gap-3">
+              <a
+                href="https://apps.apple.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-black text-white rounded-xl text-[11px] font-bold shadow-xs btn-press transition"
+              >
+                <AppleLogo className="w-4 h-4 fill-current" />
+                <span>App Store</span>
+              </a>
+              <a
+                href="https://play.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-black text-white rounded-xl text-[11px] font-bold shadow-xs btn-press transition"
+              >
+                <GooglePlayLogo className="w-3.5 h-3.5" />
+                <span>Google Play (CH Play)</span>
+              </a>
+            </div>
           </div>
-          <p className="text-center sm:text-left">
-            © {new Date().getFullYear()} Ca Làm Online. Nền tảng Xếp ca & Quản lý Lương cửa hàng.
-          </p>
-          <div className="flex items-center gap-6 font-semibold">
-            <button
-              type="button"
-              onClick={() => scrollToSection('features')}
-              className="hover:text-[#EA701B] transition"
-            >
-              Tính năng
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection('faq')}
-              className="hover:text-[#EA701B] transition"
-            >
-              Hỏi đáp
-            </button>
-            <Link to="/login" className="hover:text-[#EA701B] transition">
-              Đăng nhập
-            </Link>
-            <Link to="/register" className="text-[#EA701B] font-bold transition">
-              Đăng ký
-            </Link>
+
+          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px]">
+            <p>© {new Date().getFullYear()} Ca Làm Online. Nền tảng Xếp ca & Quản lý Lương cửa hàng.</p>
+            <div className="flex items-center gap-6 font-semibold">
+              <button
+                type="button"
+                onClick={() => scrollToSection('features')}
+                className="hover:text-[#EA701B] transition"
+              >
+                Tính năng
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection('download-app')}
+                className="hover:text-[#EA701B] transition"
+              >
+                Tải App
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection('faq')}
+                className="hover:text-[#EA701B] transition"
+              >
+                Hỏi đáp
+              </button>
+              <Link to="/login" className="hover:text-[#EA701B] transition">
+                Đăng nhập
+              </Link>
+              <Link to="/register" className="text-[#EA701B] font-bold transition">
+                Đăng ký
+              </Link>
+            </div>
           </div>
         </div>
       </footer>
