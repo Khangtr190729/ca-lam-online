@@ -9,26 +9,14 @@ import AppNavigator from './AppNavigator';
 import AdminAppNavigator from './AdminAppNavigator';
 import JoinStoreScreen from '../screens/JoinStoreScreen';
 import CreateStoreScreen from '../screens/admin/CreateStoreScreen';
+import SplashLoadingView from '../components/SplashLoadingView';
 
 export const RootNavigator = () => {
   const { user, store, isLoading } = useAuth();
 
   // Loading Splash
   if (isLoading) {
-    return (
-      <View style={styles.splashContainer}>
-        <View style={styles.logoBadge}>
-          <Ionicons name="calendar" size={44} color={colors.primary} />
-        </View>
-        <Text style={styles.splashTitle}>Ca Làm Online</Text>
-        <Text style={styles.splashSubtitle}>Xếp ca & Quản lý lương</Text>
-        <ActivityIndicator
-          size="large"
-          color="#FFFFFF"
-          style={styles.spinner}
-        />
-      </View>
-    );
+    return <SplashLoadingView statusText="Đang kết nối hệ thống..." />;
   }
 
   // Not logged in -> Auth flow
