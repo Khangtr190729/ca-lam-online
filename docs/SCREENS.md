@@ -112,8 +112,13 @@ Tài liệu này mô tả chi tiết danh sách tất cả các màn hình, bố
 
 - **Các tính năng chi tiết:**
   - **Thanh điều hướng tuần:** Chuyển đổi giữa các tuần dễ dàng để xếp lịch cho cả tuần hoặc tháng tiếp theo.
-  - **Phân ca linh hoạt:** Click vào ô Slot của từng Thứ để chọn nhân viên vào trực. **Quản lý có thể tự xếp lịch cho chính mình**.
-  - **Tự động tính lương trực tiếp:** Mỗi khi thêm hoặc bớt một ca làm, bảng tổng kết lương bên dưới tự động nhảy số tiền tương ứng (`Số giờ ca × Lương/giờ của nhân viên đó`).
+  - **Phân ca linh hoạt:** Click vào ô Slot của từng Thứ để mở Hộp thoại Phân công & Đánh giá ca (`AssignEmployeeModal`):
+    - Thêm nhân viên mới vào ca từ danh sách với bộ kiểm tra chống trùng giờ làm.
+    - **Đánh giá ca làm việc (khi ca đang chạy hoặc đã qua):**
+      - Nút **`Chưa tốt (Trừ 1 phần)`**: Mở form khấu trừ theo số tiếng (0.5h, 1h...) hoặc số tiền (bước nhảy 10k, 20k...) và tự do nhập lý do.
+      - Nút **`Không hoàn thành`**: Đánh dấu bỏ ca, trừ 100% lương ca.
+      - Nút **`Khôi phục ca`**: Chuyển về hoàn thành tốt và cộng lại 100% lương.
+  - **Tự động tính lương trực tiếp:** Bảng lương tuần (`PayrollSummaryCard`) tự động tính tổng giờ, tổng lương sau khấu trừ và số ca vi phạm của từng nhân viên.
   - **Trạng thái Bản Nháp (Draft):** Đang xếp lịch dở dang sẽ lưu nháp, chưa gửi gì cho nhân viên.
   - **Nút "Xác nhận & Gửi Email" (Publish):**
     - Chốt lịch tuần/tháng.
@@ -148,8 +153,9 @@ Tài liệu này mô tả chi tiết danh sách tất cả các màn hình, bố
 
 ---
 
-### 3.4. Màn hình Chi Tiết Ca Làm (`ShiftDetailScreen`)
-- Xem chi tiết ca làm: Giờ bắt đầu, kết thúc, các đồng nghiệp cùng trực ca đó.
+### 3.4. Màn hình Chi Tiết Ca Làm (`ShiftDetailScreen` / `EmployeeShiftDetailModal`)
+- Xem chi tiết ca làm: Giờ bắt đầu, kết thúc, cơ sở làm việc, các đồng nghiệp cùng trực ca.
+- **Hộp thông tin kỷ luật & giải trình khấu trừ:** Nếu ca bị đánh giá `PARTIAL` hoặc `MISSED`, hiển thị rõ mức khấu trừ (-giờ hoặc -tiền), lý do vi phạm từ Quản lý và số tiền lương thực nhận còn lại của ca.
 
 ---
 
@@ -164,7 +170,7 @@ Tài liệu này mô tả chi tiết danh sách tất cả các màn hình, bố
 
 ---
 
-## 4. Chi Tiết 2 Mẫu Giao Diện Email Gửi Về Cho Nhân Viên
+## 4. Chi Tiết 3 Mẫu Giao Diện Email Gửi Về Cho Nhân Viên
 
 ### 4.1. Mẫu Email 1: Thông Báo Lịch Làm Việc & Tiền Lương Tuần
 - **Tiêu đề:** `[Tên Cửa Hàng] Thông báo Lịch làm việc & Bảng lương dự kiến - Tuần XX`
@@ -186,3 +192,10 @@ Tài liệu này mô tả chi tiết danh sách tất cả các màn hình, bố
   - Lời chào và thông điệp mời từ Chủ quán.
   - **Mã mời 6 số:** `[ 4 8 2 9 1 5 ]`
   - Ghi chú: *Mã mời này có hiệu lực trong vòng 60 phút. Vui lòng mở ứng dụng Ca Làm Online và nhập mã để tham gia.*
+
+### 4.3. Mẫu Email 3: Thông Báo Kỷ Luật & Khấu Trừ Tiền Lương Ca Làm
+- **Tiêu đề:** `[Tên Cửa Hàng] Thông báo về việc chưa hoàn thành tốt ca làm việc` hoặc `[Tên Cửa Hàng] Thông báo vắng mặt không hoàn thành ca làm việc`
+- **Nội dung:**
+  - Thông tin ca: Tên ca, ngày làm việc, khung giờ.
+  - Chi tiết khấu trừ: Lương cả ca, mức khấu trừ (-giờ hoặc -tiền), lương thực nhận.
+  - **Lý do vi phạm cụ thể** (do Quản lý tự do nhập khi đánh giá).

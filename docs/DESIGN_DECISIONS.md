@@ -113,18 +113,4 @@ Hệ thống tuân thủ nguyên tắc phân định trách nhiệm rõ ràng:
   - Tránh gắn cứng dữ liệu mẫu (hardcoded options).
   - Cung cấp các công cụ chọn linh hoạt như thẻ `<select>` với bước nhảy rõ ràng (10k, 20k, 30k... hoặc 0.5h, 1h...) và ô nhập văn bản tự do để người dùng chủ động điều chỉnh.
 
----
-
-## 7. Quy Chuẩn Thiết Kế Đánh Giá Ca Làm & Khấu Trừ Lương (Shift Attendance & Deductions)
-
-### Quyết định
-Hệ thống thiết lập cơ chế đánh giá chuyên nghiệp với **3 trạng thái ca làm việc**:
-1. **Hoàn thành tốt (`COMPLETED`):** Nhân viên tham gia ca đầy đủ, hưởng 100% tiền lương ca.
-2. **Chưa hoàn thành tốt (`PARTIAL`):** Dành cho trường hợp nhân viên đi trễ, xin về sớm hoặc vi phạm quy chế nhẹ.
-   - Cho phép khấu trừ linh hoạt:
-     - **Theo số giờ:** Thẻ `<select>` chọn số giờ muốn trừ (`0.5h`, `1.0h`, `1.5h`... đến tối đa thời lượng ca).
-     - **Theo số tiền:** Thẻ `<select>` chọn số tiền trừ với bước nhảy `10.000đ` (`10.000đ`, `20.000đ`, `30.000đ`... đến giới hạn trần lương ca).
-   - Cho phép quản lý tự do nhập lý do vi phạm (tự động đính kèm vào email gửi nhân viên).
-   - Tự động hiển thị bảng xem trước tính toán lương thực nhận của ca làm việc.
-3. **Không hoàn thành (`MISSED`):** Dành cho trường hợp bỏ ca, vắng mặt không phép; khấu trừ 100% tiền lương ca và gửi email cảnh báo kỷ luật.
 

@@ -99,20 +99,48 @@ Hệ thống được phát triển theo mô hình:
 
 ---
 
-## 6. Hệ Thống Email Tự Động (2 Form Email Chính)
+## 6. Hệ Thống Email Tự Động (3 Mẫu Email Chính)
 
-Dự án tích hợp dịch vụ gửi email với 2 mẫu (template) chuẩn:
+Dự án tích hợp dịch vụ gửi email với 3 mẫu (template) chuẩn:
 
 1. **Form 1 — Email Thông Báo Lịch Làm Việc & Tiền Lương:**
    - Gửi cho từng nhân viên ngay khi lịch được xác nhận xuất bản.
-   - **Nội dung email bao gồm:**
-     - Lời chào kèm họ tên nhân viên và tên cửa hàng.
-     - Bảng chi tiết các ca làm việc trong tuần (Thứ mấy, ngày nào, từ mấy giờ đến mấy giờ, vị trí trực).
-     - **Tổng số giờ làm việc trong tuần**.
-     - **Tổng số tiền lương dự kiến nhận được (VNĐ)**.
+   - **Nội dung email bao gồm:** Lời chào, bảng chi tiết các ca trực trong tuần, tổng số giờ làm và tổng số tiền lương dự kiến nhận được (VNĐ).
 2. **Form 2 — Email Mời Tham Gia Cửa Hàng:**
    - Gửi khi Chủ muốn mời một nhân viên tham gia vào quán qua email.
-   - **Nội dung email bao gồm:**
-     - Tên cửa hàng và lời mời từ Chủ quán.
-     - **Mã mời 6 chữ số ngẫu nhiên** (kèm lưu ý mã có hạn 1 giờ).
-     - Đường dẫn liên kết nhanh để vào app nhập mã.
+   - **Nội dung email bao gồm:** Tên cửa hàng, lời mời, **mã mời 6 chữ số ngẫu nhiên** (hạn 1 giờ) và liên kết gia nhập quán.
+3. **Form 3 — Email Kỷ Luật & Thông Báo Khấu Trừ Lương Ca Làm:**
+   - Tự động kích hoạt khi Quản lý đánh giá ca làm việc của nhân viên (khi ca đang diễn ra hoặc đã kết thúc).
+   - **Hai cấp độ hiển thị:**
+     - **Chưa hoàn thành tốt (`PARTIAL` - màu hổ phách):** Thông báo số giờ bị trừ, số tiền khấu trừ, lý do vi phạm (đi trễ, về sớm) và số tiền lương thực nhận còn lại của ca.
+     - **Không hoàn thành (`MISSED` - màu đỏ):** Thông báo nhân viên bỏ ca/vắng mặt không phép, khấu trừ 100% lương ca và lý do ghi nhận.
+
+---
+
+## 7. Nghiệp Vụ Đánh Giá Ca Làm Việc & Khấu Trừ Lương (Shift Attendance & Deductions)
+
+Nhằm đảm bảo kỷ luật và minh bạch quyền lợi công bằng cho nhân sự, hệ thống cung cấp quy trình đánh giá 3 cấp độ:
+
+### 7.1. Ba Trạng Thái Đánh Giá Ca
+1. **Hoàn thành tốt (`COMPLETED`):**
+   - Mặc định khi nhân viên đi làm đầy đủ, đúng giờ.
+   - Nhân viên hưởng **100%** tiền lương ca làm việc.
+2. **Chưa hoàn thành tốt (`PARTIAL`):**
+   - Áp dụng khi nhân viên đi trễ (15p, 30p, 1h...), xin về sớm hoặc vi phạm quy chế nhẹ.
+   - Hệ thống cho phép **khấu trừ một phần lương ca** thay vì trừ mất cả ca:
+     - **Khấu trừ theo số giờ:** Sử dụng dropdown chọn từ `0.5 giờ`, `1 giờ`, `1.5 giờ`... đến tối đa thời lượng ca.
+     - **Khấu trừ theo số tiền (VNĐ):** Sử dụng dropdown với **bước nhảy 10.000đ** (`10.000đ`, `20.000đ`, `30.000đ`...) đến trần lương ca, kèm ô nhập số lẻ tùy chỉnh.
+   - **Tự do nhập lý do:** Quản lý tự gõ lý do vi phạm thực tế để lưu vào hồ sơ và gửi trực tiếp qua email nhân viên.
+   - **Bảng xem trước trực tiếp:** Tự động tính: `Lương gốc ca - Khấu trừ = Lương ca thực nhận`.
+3. **Không hoàn thành (`MISSED`):**
+   - Áp dụng khi nhân viên vắng mặt không phép, tự ý bỏ ca giữa chừng.
+   - Khấu trừ toàn bộ **100% tiền lương ca** (lương ca = 0 VNĐ) và gửi email cảnh báo.
+
+### 7.2. Đồng Bộ Bảng Lương & Khôi Phục Ca
+- Mọi khoản khấu trừ sẽ được tự động cập nhật thời gian thực vào:
+  - Bảng tổng hợp lương tuần của cửa hàng (`PayrollSummaryCard`).
+  - Lưới thời khóa biểu (hiển thị huy hiệu vi phạm màu cam).
+  - Màn hình lịch cá nhân của nhân viên (`MySchedulePage` / Mobile).
+  - Báo cáo tài chính & quỹ lương trên `Dashboard`.
+- **Cơ chế Khôi phục ca:** Quản lý có thể bấm nút **"Khôi phục ca"** bất kỳ lúc nào để chuyển trạng thái về `COMPLETED` và cộng lại 100% lương ca nếu có sự nhầm lẫn.
+
