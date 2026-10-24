@@ -198,7 +198,7 @@ export const sendStoreInviteEmail = async ({ toEmail, storeName, inviteCode }) =
 };
 
 /**
- * Gửi email thông báo Nhân viên bị đánh giá Không hoàn thành ca làm việc & Bị trừ lương
+ * Gửi email thông báo Nhân viên bị đánh giá Không hoàn thành / Chưa hoàn thành tốt & Khấu trừ lương
  */
 export const sendMissedShiftEmail = async ({
   toEmail,
@@ -210,24 +210,40 @@ export const sendMissedShiftEmail = async ({
   timeRange,
   date,
   dayOfWeek,
-  deductedHours,
-  deductedPay,
-  reason,
-  updatedTotalSalary,
+  attendanceStatus = 'MISSED',
+  deductedHours = 0,
+  deductedPay = 0,
+  originalPay = 0,
+  remainingPay = 0,
+  reason = '',
+  updatedTotalSalary = 0,
 }) => {
   try {
+    const isPartial = attendanceStatus === 'PARTIAL';
     const transporter = createTransporter();
 
     if (!transporter) {
       console.log(
-        `[EMAIL SIMULATION] Thông báo trừ ca ${shiftName} (${date}) bởi ${evaluatorRole} ${evaluatorName} đến ${toEmail} (${employeeName}) - Trừ ${deductedPay.toLocaleString('vi-VN')} VNĐ. Lý do: ${reason}`
+        `[EMAIL SIMULATION] Thông báo ${isPartial ? 'chưa hoàn thành tốt' : 'trừ cả ca'} ${shiftName} (${date}) bởi ${evaluatorRole} ${evaluatorName} đến ${toEmail} (${employeeName}) - Trừ ${deductedPay.toLocaleString('vi-VN')} VNĐ. Lý do: ${reason}`
       );
       return { success: true, simulated: true, to: toEmail };
     }
 
+    const headerGradient = isPartial
+      ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+      : 'linear-gradient(135deg, #ef4444, #dc2626)';
+    const statusText = isPartial ? 'Chưa hoàn thành tốt ca làm' : 'Không hoàn thành ca làm việc';
+    const statusBadgeStyle = isPartial
+      ? 'color: #b45309; background-color: #fffbeb; padding: 3px 8px; border-radius: 6px; border: 1px solid #fde68a;'
+      : 'color: #dc2626; background-color: #fef2f2; padding: 3px 8px; border-radius: 6px; border: 1px solid #fecaca;';
+    const boxBg = isPartial ? '#fffbeb' : '#fef2f2';
+    const boxBorder = isPartial ? '#fcd34d' : '#fca5a5';
+    const titleColor = isPartial ? '#92400e' : '#991b1b';
+    const textColor = isPartial ? '#78350f' : '#7f1d1d';
+
     const htmlContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #fee2e2; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); padding: 24px; text-align: center; color: white;">
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${boxBorder}; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <div style="background: ${headerGradient}; padding: 24px; text-align: center; color: white;">
           <h2 style="margin: 0; font-size: 20px;">${storeName}</h2>
           <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.95; letter-spacing: 0.5px;">THÔNG BÁO ĐÁNH GIÁ CA LÀM & ĐIỀU CHỈNH TIỀN LƯƠNG</p>
         </div>
@@ -235,34 +251,52 @@ export const sendMissedShiftEmail = async ({
         <div style="padding: 24px;">
           <p style="font-size: 15px; color: #1f2937;">Xin chào <strong>${employeeName}</strong>,</p>
           <p style="color: #4b5563; line-height: 1.6; font-size: 14px;">
-            ${evaluatorRole} <strong>${evaluatorName || storeName}</strong> của cửa hàng <strong>${storeName}</strong> vừa cập nhật đánh giá ca làm việc của bạn sang trạng thái 
-            <strong style="color: #dc2626; background-color: #fef2f2; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecaca;">Không hoàn thành tốt ca làm việc</strong>.
+            ${evaluatorRole} <strong>${evaluatorName || storeName}</strong> vừa cập nhật đánh giá ca làm việc của bạn sang trạng thái 
+            <strong style="${statusBadgeStyle}">${statusText}</strong>.
           </p>
 
-          <div style="margin: 20px 0; padding: 16px; background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px;">
-            <h4 style="margin: 0 0 12px 0; color: #991b1b; font-size: 15px;">CHI TIẾT CA LÀM BỊ ĐÁNH GIÁ:</h4>
-            <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
+          <div style="margin: 20px 0; padding: 16px; background-color: ${boxBg}; border: 1px solid ${boxBorder}; border-radius: 8px;">
+            <h4 style="margin: 0 0 12px 0; color: ${titleColor}; font-size: 15px;">CHI TIẾT ĐÁNH GIÁ CA LÀM:</h4>
+            <div style="margin-bottom: 8px; font-size: 14px; color: ${textColor};">
               <span>• Người đánh giá:</span> <strong>${evaluatorName || 'Quản lý'}</strong> (${evaluatorRole})
             </div>
-            <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
+            <div style="margin-bottom: 8px; font-size: 14px; color: ${textColor};">
               <span>• Ca làm việc:</span> <strong>${shiftName} (${timeRange})</strong>
             </div>
-            <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
+            <div style="margin-bottom: 8px; font-size: 14px; color: ${textColor};">
               <span>• Thời gian:</span> <strong>${dayOfWeek}, ngày ${date}</strong>
             </div>
-            <div style="margin-bottom: 8px; font-size: 14px; color: #7f1d1d;">
-              <span>• Số giờ bị trừ:</span> <strong>-${deductedHours} giờ</strong>
-            </div>
-            <div style="margin-bottom: 8px; font-size: 14px; color: #dc2626; font-weight: bold;">
+            ${
+              originalPay > 0
+                ? `<div style="margin-bottom: 8px; font-size: 14px; color: ${textColor};">
+                    <span>• Lương ca ban đầu:</span> <strong>${originalPay.toLocaleString('vi-VN')} VNĐ</strong>
+                   </div>`
+                : ''
+            }
+            ${
+              deductedHours > 0
+                ? `<div style="margin-bottom: 8px; font-size: 14px; color: ${textColor};">
+                    <span>• Số giờ bị khấu trừ:</span> <strong>-${deductedHours} giờ</strong>
+                   </div>`
+                : ''
+            }
+            <div style="margin-bottom: 8px; font-size: 14px; color: ${isPartial ? '#d97706' : '#dc2626'}; font-weight: bold;">
               <span>• Tiền lương bị trừ:</span> <strong style="font-size: 16px;">-${deductedPay.toLocaleString('vi-VN')} VNĐ</strong>
             </div>
-            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #f87171; font-size: 14px; color: #991b1b;">
-              <span>• Lý do ghi nhận:</span> <em style="font-weight: 600;">"${reason || 'Không đến nhận ca / Vắng mặt không lý do'}"</em>
+            ${
+              isPartial
+                ? `<div style="margin-bottom: 8px; font-size: 14px; color: #059669; font-weight: bold;">
+                    <span>• Lương ca thực nhận:</span> <strong style="font-size: 16px;">${remainingPay.toLocaleString('vi-VN')} VNĐ</strong>
+                   </div>`
+                : ''
+            }
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed ${boxBorder}; font-size: 14px; color: ${titleColor};">
+              <span>• Lý do ghi nhận:</span> <em style="font-weight: 600;">"${reason || (isPartial ? 'Đi trễ / Về sớm / Vi phạm quy chế ca làm' : 'Không đến nhận ca / Vắng mặt')}"</em>
             </div>
           </div>
 
           <div style="padding: 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: #334155;">
-            <span>Lương tuần sau khi cập nhật:</span> 
+            <span>Tổng lương tuần sau khi cập nhật:</span> 
             <strong style="color: #059669; font-size: 15px; margin-left: 6px;">${updatedTotalSalary.toLocaleString('vi-VN')} VNĐ</strong>
           </div>
 
@@ -274,15 +308,19 @@ export const sendMissedShiftEmail = async ({
       </div>
     `;
 
+    const subject = isPartial
+      ? `[${storeName}] Thông báo: Ca làm "${shiftName}" ngày ${date} - Đánh giá Chưa hoàn thành tốt & Trừ một phần lương`
+      : `[${storeName}] Thông báo: Ca làm "${shiftName}" ngày ${date} bị đánh giá Không hoàn thành`;
+
     const mailOptions = {
       from: `"${storeName} - Ca Làm Online" <${process.env.EMAIL_USER}>`,
       to: toEmail,
-      subject: `[${storeName}] Thông báo: Ca làm "${shiftName}" ngày ${date} bị đánh giá Không hoàn thành`,
+      subject,
       html: htmlContent,
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL SENT] Đã gửi thông báo trừ ca đến ${toEmail}: ${info.messageId}`);
+    console.log(`[EMAIL SENT] Đã gửi thông báo đánh giá ca đến ${toEmail}: ${info.messageId}`);
     return { success: true, messageId: info.messageId, to: toEmail };
   } catch (error) {
     console.error(`[EMAIL ERROR] Lỗi gửi thông báo trừ ca đến ${toEmail}:`, error.message);

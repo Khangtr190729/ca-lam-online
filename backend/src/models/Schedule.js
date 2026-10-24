@@ -37,8 +37,21 @@ const assignmentSchema = new mongoose.Schema(
     },
     attendanceStatus: {
       type: String,
-      enum: ['COMPLETED', 'MISSED'],
+      enum: ['COMPLETED', 'PARTIAL', 'MISSED'],
       default: 'COMPLETED',
+    },
+    penaltyType: {
+      type: String,
+      enum: ['NONE', 'HOURS', 'AMOUNT'],
+      default: 'NONE',
+    },
+    deductedHours: {
+      type: Number,
+      default: 0, // Số giờ bị trừ (ví dụ đi trễ 1h, về sớm 1h)
+    },
+    deductedPay: {
+      type: Number,
+      default: 0, // Tiền lương bị trừ
     },
     missedReason: {
       type: String,

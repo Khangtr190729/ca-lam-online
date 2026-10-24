@@ -374,11 +374,20 @@ export const getMySchedule = async (req, res) => {
         hours: a.hours,
         hourlyWage: a.hourlyWage,
         totalPay: a.totalPay,
+        attendanceStatus: a.attendanceStatus || 'COMPLETED',
+        penaltyType: a.penaltyType || 'NONE',
+        deductedHours: a.deductedHours || 0,
+        deductedPay: a.deductedPay || 0,
+        missedReason: a.missedReason || '',
         color: a.shiftId ? a.shiftId.color : '#3B82F6',
       }));
 
-    const totalHours = myShifts.reduce((acc, cur) => acc + cur.hours, 0);
-    const totalSalary = myShifts.reduce((acc, cur) => acc + cur.totalPay, 0);
+    const totalHours = myShifts.reduce((acc, cur) => {
+      if (cur.attendanceStatus === 'MISSED') return acc;
+      if (cur.attendanceStatus === 'PARTIAL') return acc + Math.max(0, cur.hours - cur.deductedHours);
+      return acc + cur.hours;
+    }, 0);
+    const totalSalary = myShifts.reduce((acc, cur) => acc + (cur.totalPay || 0), 0);
     const hourlyWage = myShifts.length > 0 ? myShifts[0].hourlyWage : 0;
 
     return res.status(200).json({
@@ -489,7 +498,19 @@ export const autoGenerateSchedule = async (req, res) => {
 export const evaluateShift = async (req, res) => {
   try {
     const { storeId } = req.params;
-    const { week, year, weekStart, date, shiftId, userId, attendanceStatus, missedReason } = req.body;
+    const {
+      week,
+      year,
+      weekStart,
+      date,
+      shiftId,
+      userId,
+      attendanceStatus,
+      missedReason,
+      deductedHours,
+      deductedPay,
+      penaltyType,
+    } = req.body;
     const evaluatorId = req.user.id;
 
     let targetWeek = week;
@@ -528,15 +549,22 @@ export const evaluateShift = async (req, res) => {
       userId,
       attendanceStatus,
       missedReason,
+      deductedHours,
+      deductedPay,
+      penaltyType,
       evaluatorId,
     });
 
-    const isMissed = attendanceStatus === 'MISSED';
+    let message = 'Đã khôi phục ca làm việc sang trạng thái Hoàn thành và cộng lại lương thành công!';
+    if (attendanceStatus === 'MISSED') {
+      message = 'Đã đánh dấu ca làm Không hoàn thành và trừ lương nhân viên thành công! Email thông báo đã được gửi.';
+    } else if (attendanceStatus === 'PARTIAL') {
+      message = 'Đã ghi nhận đánh giá Chưa hoàn thành tốt và trừ một phần lương thành công! Email thông báo đã được gửi.';
+    }
+
     return res.status(200).json({
       success: true,
-      message: isMissed
-        ? 'Đã đánh dấu ca làm Không hoàn thành và trừ lương nhân viên thành công! Email thông báo đã được gửi.'
-        : 'Đã khôi phục ca làm việc sang trạng thái Hoàn thành và cộng lại lương thành công!',
+      message,
       schedule: result.schedule,
       salarySummary: result.salarySummary,
       emailSent: result.emailResult?.success || false,

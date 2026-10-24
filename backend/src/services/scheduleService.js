@@ -205,12 +205,35 @@ export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
     if (!shift || !member) continue;
 
     const isMissed = item.attendanceStatus === 'MISSED';
+    const isPartial = item.attendanceStatus === 'PARTIAL';
     const hours = shift.durationHours || 0;
     const wage =
       item.hourlyWage !== undefined && !isNaN(Number(item.hourlyWage))
         ? Number(item.hourlyWage)
         : member.hourlyWage || 0;
-    const totalPay = isMissed ? 0 : Math.round(hours * wage);
+    const fullPay = Math.round(hours * wage);
+
+    let deductedHours = Number(item.deductedHours) || 0;
+    let deductedPay = Number(item.deductedPay) || 0;
+    let totalPay = fullPay;
+
+    if (isMissed) {
+      deductedHours = hours;
+      deductedPay = fullPay;
+      totalPay = 0;
+    } else if (isPartial) {
+      if (item.penaltyType === 'AMOUNT') {
+        deductedPay = Math.min(fullPay, Math.max(0, deductedPay));
+        deductedHours = wage > 0 ? Number((deductedPay / wage).toFixed(1)) : 0;
+      } else {
+        deductedHours = Math.min(hours, Math.max(0, deductedHours));
+        deductedPay = Math.min(fullPay, Math.round(deductedHours * wage));
+      }
+      totalPay = Math.max(0, fullPay - deductedPay);
+    } else {
+      deductedHours = 0;
+      deductedPay = 0;
+    }
 
     processedAssignments.push({
       date: item.date,
@@ -220,7 +243,10 @@ export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
       hourlyWage: wage,
       hours: hours,
       totalPay: totalPay,
-      attendanceStatus: isMissed ? 'MISSED' : 'COMPLETED',
+      attendanceStatus: isMissed ? 'MISSED' : isPartial ? 'PARTIAL' : 'COMPLETED',
+      penaltyType: item.penaltyType || (isPartial ? 'HOURS' : 'NONE'),
+      deductedHours,
+      deductedPay,
       missedReason: item.missedReason || '',
       evaluatedAt: item.evaluatedAt || null,
       evaluatedBy: item.evaluatedBy || null,
@@ -238,17 +264,24 @@ export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
         totalSalary: 0,
         shiftCount: 0,
         completedShifts: 0,
+        partialShifts: 0,
         missedShifts: 0,
         shifts: [],
       };
     }
 
-    if (!isMissed) {
+    if (isMissed) {
+      salaryMap[uid].missedShifts += 1;
+    } else if (isPartial) {
+      const effectiveHours = Math.max(0, hours - deductedHours);
+      salaryMap[uid].totalHours += effectiveHours;
+      salaryMap[uid].totalSalary += totalPay;
+      salaryMap[uid].partialShifts = (salaryMap[uid].partialShifts || 0) + 1;
+      salaryMap[uid].completedShifts += 1;
+    } else {
       salaryMap[uid].totalHours += hours;
       salaryMap[uid].totalSalary += totalPay;
       salaryMap[uid].completedShifts += 1;
-    } else {
-      salaryMap[uid].missedShifts += 1;
     }
     salaryMap[uid].shiftCount += 1;
     salaryMap[uid].shifts.push({
@@ -258,7 +291,10 @@ export const processAssignmentsAndSalary = async (storeId, rawAssignments) => {
       timeRange: `${shift.startTime} - ${shift.endTime}`,
       hours: hours,
       totalPay: totalPay,
-      attendanceStatus: isMissed ? 'MISSED' : 'COMPLETED',
+      attendanceStatus: isMissed ? 'MISSED' : isPartial ? 'PARTIAL' : 'COMPLETED',
+      penaltyType: item.penaltyType || (isPartial ? 'HOURS' : 'NONE'),
+      deductedHours,
+      deductedPay,
       missedReason: item.missedReason || '',
     });
   }
@@ -288,16 +324,24 @@ export const calculateSalarySummaryFromAssignments = (assignments) => {
         totalSalary: 0,
         shiftCount: 0,
         completedShifts: 0,
+        partialShifts: 0,
         missedShifts: 0,
       };
     }
     const isMissed = a.attendanceStatus === 'MISSED';
-    if (!isMissed) {
-      salaryMap[uid].totalHours += a.hours || 0;
-      salaryMap[uid].totalSalary += a.totalPay || 0;
+    const isPartial = a.attendanceStatus === 'PARTIAL';
+    if (isMissed) {
+      salaryMap[uid].missedShifts += 1;
+    } else if (isPartial) {
+      const effectiveHours = Math.max(0, (a.hours || 0) - (a.deductedHours || 0));
+      salaryMap[uid].totalHours += effectiveHours;
+      salaryMap[uid].totalSalary += Math.max(0, a.totalPay !== undefined ? a.totalPay : 0);
+      salaryMap[uid].partialShifts = (salaryMap[uid].partialShifts || 0) + 1;
       salaryMap[uid].completedShifts += 1;
     } else {
-      salaryMap[uid].missedShifts += 1;
+      salaryMap[uid].totalHours += a.hours || 0;
+      salaryMap[uid].totalSalary += a.totalPay !== undefined ? a.totalPay : Math.round((a.hours || 0) * (a.hourlyWage || 0));
+      salaryMap[uid].completedShifts += 1;
     }
     salaryMap[uid].shiftCount += 1;
   });
@@ -629,8 +673,11 @@ export const evaluateShiftAttendance = async ({
   date,
   shiftId,
   userId,
-  attendanceStatus, // 'MISSED' hoặc 'COMPLETED'
+  attendanceStatus, // 'COMPLETED' | 'PARTIAL' | 'MISSED'
   missedReason,
+  deductedHours = 0,
+  deductedPay = 0,
+  penaltyType = 'HOURS',
   evaluatorId,
 }) => {
   const store = await Store.findById(storeId);
@@ -683,20 +730,49 @@ export const evaluateShiftAttendance = async ({
     throw err;
   }
 
-  const newStatus = attendanceStatus === 'MISSED' ? 'MISSED' : 'COMPLETED';
-  targetAssignment.attendanceStatus = newStatus;
-  targetAssignment.missedReason = newStatus === 'MISSED' ? (missedReason || '').trim() : '';
-  targetAssignment.evaluatedAt = new Date();
-  targetAssignment.evaluatedBy = evaluatorId;
-
   const hours = targetAssignment.hours || shift.durationHours || 4;
   const wage = targetAssignment.hourlyWage || 20000;
   const fullPay = Math.round(hours * wage);
 
+  let newStatus = 'COMPLETED';
+  if (attendanceStatus === 'MISSED') {
+    newStatus = 'MISSED';
+  } else if (attendanceStatus === 'PARTIAL') {
+    newStatus = 'PARTIAL';
+  }
+
+  targetAssignment.attendanceStatus = newStatus;
+  targetAssignment.evaluatedAt = new Date();
+  targetAssignment.evaluatedBy = evaluatorId;
+
   if (newStatus === 'MISSED') {
+    targetAssignment.penaltyType = 'HOURS';
+    targetAssignment.deductedHours = hours;
+    targetAssignment.deductedPay = fullPay;
     targetAssignment.totalPay = 0;
+    targetAssignment.missedReason = (missedReason || '').trim();
+  } else if (newStatus === 'PARTIAL') {
+    targetAssignment.penaltyType = penaltyType === 'AMOUNT' ? 'AMOUNT' : 'HOURS';
+    let dPay = 0;
+    let dHours = 0;
+    if (targetAssignment.penaltyType === 'AMOUNT') {
+      dPay = Math.min(fullPay, Math.max(0, Math.round(Number(deductedPay) || 0)));
+      dHours = wage > 0 ? Number((dPay / wage).toFixed(1)) : 0;
+    } else {
+      dHours = Math.min(hours, Math.max(0, Number(deductedHours) || 0));
+      dPay = Math.min(fullPay, Math.round(dHours * wage));
+    }
+    targetAssignment.deductedHours = dHours;
+    targetAssignment.deductedPay = dPay;
+    targetAssignment.totalPay = Math.max(0, fullPay - dPay);
+    targetAssignment.missedReason = (missedReason || '').trim();
   } else {
+    // COMPLETED
+    targetAssignment.penaltyType = 'NONE';
+    targetAssignment.deductedHours = 0;
+    targetAssignment.deductedPay = 0;
     targetAssignment.totalPay = fullPay;
+    targetAssignment.missedReason = '';
   }
 
   await schedule.save();
@@ -710,9 +786,9 @@ export const evaluateShiftAttendance = async ({
 
   const salarySummary = calculateSalarySummaryFromAssignments(schedule.assignments);
 
-  // 4. Gửi email thông báo nếu đánh dấu MISSED
+  // 4. Gửi email thông báo nếu đánh dấu MISSED hoặc PARTIAL
   let emailResult = null;
-  if (newStatus === 'MISSED') {
+  if (newStatus === 'MISSED' || newStatus === 'PARTIAL') {
     const targetMember = await User.findById(userId);
     const toEmail = targetMember?.email;
     const employeeName = targetMember?.fullName || 'Nhân viên';
@@ -740,8 +816,11 @@ export const evaluateShiftAttendance = async ({
         timeRange: `${shift.startTime} - ${shift.endTime}`,
         date: targetAssignment.date,
         dayOfWeek: targetAssignment.dayOfWeek,
-        deductedHours: hours,
-        deductedPay: fullPay,
+        attendanceStatus: newStatus,
+        deductedHours: targetAssignment.deductedHours,
+        deductedPay: targetAssignment.deductedPay,
+        originalPay: fullPay,
+        remainingPay: targetAssignment.totalPay,
         reason: targetAssignment.missedReason,
         updatedTotalSalary,
       });
