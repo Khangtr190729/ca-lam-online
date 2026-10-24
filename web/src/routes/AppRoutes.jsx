@@ -11,6 +11,7 @@ import ProfilePage from '../pages/ProfilePage';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import MySchedulePage from '../pages/MySchedulePage';
+import HomePage from '../pages/HomePage';
 
 // Route Guard for Admin & Manager (Web Shell)
 const ManagementRoute = ({ children, adminOnly = false }) => {
@@ -157,21 +158,8 @@ export const AppRoutes = () => {
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
-      {/* Fallback Root */}
-      <Route
-        path="/"
-        element={
-          user ? (
-            user.role === 'EMPLOYEE' ? (
-              <Navigate to="/my-schedule" replace />
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
+      {/* Public Home / Landing Page */}
+      <Route path="/" element={<HomePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

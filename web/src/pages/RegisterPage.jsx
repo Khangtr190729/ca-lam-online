@@ -68,9 +68,9 @@ export const RegisterPage = () => {
     <div className="min-h-screen bg-[#FFF7F0] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-['Be_Vietnam_Pro',sans-serif]">
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-block mb-3">
+        <Link to="/" className="inline-block mb-3 hover:opacity-90 transition">
           <Logo size="lg" />
-        </div>
+        </Link>
         <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
           Tạo tài khoản mới
         </h2>
