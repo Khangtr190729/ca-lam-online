@@ -9,8 +9,10 @@ Tài liệu này xác định toàn bộ yêu cầu nghiệp vụ, luồng xử 
 **Ca Làm Online** là nền tảng hỗ trợ chủ cửa hàng (quán cà phê, nhà hàng, cửa hàng bán lẻ...) quản lý nhân sự, tự động hóa quy trình phân ca làm việc (theo tuần/tháng), tính toán tiền lương theo giờ và tự động gửi thông báo lịch làm kèm lương chi tiết qua email cho nhân viên.
 
 Hệ thống được phát triển theo mô hình:
-- **Web App (`web/`):** Dành cho **Chủ (Admin)** và **Quản lý (Manager)** thao tác trên máy tính (xếp lịch, gắn lương, xem báo cáo, quản lý nhân viên).
-- **Mobile App (`mobile/`):** Dành cho **Nhân viên (Employee)** tra cứu lịch làm cá nhân, nhận thông báo tức thời.
+- **Web App (`web/`):** Nền tảng toàn diện trên máy tính & trình duyệt dành cho **Chủ (Admin)**, **Quản lý (Manager)** và **Nhân viên (Employee)**.
+- **Mobile App (`mobile/`):** Ứng dụng di động đa năng hỗ trợ cả hai nhóm đối tượng:
+  - **Chủ quán / Quản lý:** Theo dõi thống kê quán, xếp ca tự động/thủ công, duyệt & xuất bản lịch làm gửi email, tạo mã mời 6 số, quản lý nhân sự & khung giờ trực ngay trên điện thoại.
+  - **Nhân viên:** Tra cứu lịch làm tuần, theo dõi bảng lương ước tính theo giờ, ca trực tiếp theo và thông báo cửa hàng.
 - **Backend API (`backend/`):** Xử lý nghiệp vụ tập trung, quản lý cơ sở dữ liệu MongoDB Atlas, tính lương và gửi Email tự động.
 
 ---

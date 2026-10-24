@@ -6,7 +6,9 @@ import colors from '../theme/colors';
 
 import AuthNavigator from './AuthNavigator';
 import AppNavigator from './AppNavigator';
+import AdminAppNavigator from './AdminAppNavigator';
 import JoinStoreScreen from '../screens/JoinStoreScreen';
+import CreateStoreScreen from '../screens/admin/CreateStoreScreen';
 
 export const RootNavigator = () => {
   const { user, store, isLoading } = useAuth();
@@ -34,12 +36,21 @@ export const RootNavigator = () => {
     return <AuthNavigator />;
   }
 
-  // Logged in but not joined any store yet -> Join store screen
+  const isAdmin = user.systemRole === 'ADMIN';
+
+  // Logged in but not joined / created any store yet
   if (!store) {
+    if (isAdmin) {
+      return <CreateStoreScreen />;
+    }
     return <JoinStoreScreen />;
   }
 
-  // Authenticated and has a store -> Main app tabs
+  // Authenticated and has a store
+  if (isAdmin) {
+    return <AdminAppNavigator />;
+  }
+
   return <AppNavigator />;
 };
 

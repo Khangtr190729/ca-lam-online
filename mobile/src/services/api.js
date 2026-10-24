@@ -99,12 +99,52 @@ export const authApi = {
 
 // --- STORE APIS ---
 export const storeApi = {
+  createStore: (data) => api.post('/stores', data),
   getMyStore: () => api.get('/stores/my-store'),
+  updateMyStore: (data) => api.put('/stores/my-store', data),
+  generateInviteCode: () => api.post('/stores/generate-invite-code'),
   joinByCode: (inviteCode) => api.post('/stores/join-by-code', { inviteCode }),
+  inviteByIdOrEmail: (data) => api.post('/stores/invite-by-id', data),
+};
+
+// --- MEMBER APIS ---
+export const memberApi = {
+  getMembers: (storeId) => api.get(`/stores/${storeId}/members`),
+  updateWage: (storeId, memberId, hourlyWage) =>
+    api.put(`/stores/${storeId}/members/${memberId}/wage`, { hourlyWage }),
+  updateEmploymentType: (storeId, memberId, employmentType) =>
+    api.put(`/stores/${storeId}/members/${memberId}/employment-type`, { employmentType }),
+  removeMember: (storeId, memberId) =>
+    api.delete(`/stores/${storeId}/members/${memberId}`),
+};
+
+// --- SHIFT APIS ---
+export const shiftApi = {
+  getShifts: (storeId) => api.get(`/stores/${storeId}/shifts`),
+  createShift: (storeId, data) => api.post(`/stores/${storeId}/shifts`, data),
+  updateShift: (storeId, shiftId, data) => api.put(`/stores/${storeId}/shifts/${shiftId}`, data),
+  deleteShift: (storeId, shiftId) => api.delete(`/stores/${storeId}/shifts/${shiftId}`),
 };
 
 // --- SCHEDULE APIS ---
 export const scheduleApi = {
+  getWeeklySchedule: (storeId, week, year) =>
+    api.get(`/stores/${storeId}/schedules?week=${week}&year=${year}`),
+  saveDraft: (storeId, payload) =>
+    api.post(`/stores/${storeId}/schedules/save-draft`, payload),
+  autoGenerate: (storeId, payload) =>
+    api.post(`/stores/${storeId}/schedules/auto-generate`, payload),
+  publishSchedule: (storeId, payload) =>
+    api.post(`/stores/${storeId}/schedules/publish`, payload),
+  evaluateShift: (storeId, payload) =>
+    api.put(`/stores/${storeId}/schedules/evaluate-shift`, payload),
+  getMonthlyStats: (storeId, month, year) => {
+    let url = `/stores/${storeId}/schedules/monthly-stats`;
+    if (month && year) {
+      url += `?month=${month}&year=${year}`;
+    }
+    return api.get(url);
+  },
   getMySchedule: (week, year) => api.get(`/schedules/my-schedule?week=${week}&year=${year}`),
 };
 

@@ -12,13 +12,13 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Tải lại thông tin cửa hàng hiện tại của nhân viên
+  // Tải lại thông tin cửa hàng hiện tại của người dùng (Chủ quán hoặc Nhân viên)
   const fetchMyStore = useCallback(async () => {
     try {
       const res = await storeApi.getMyStore();
       if (res && res.success && res.store) {
         setStore(res.store);
-        setRoleInStore(res.roleInStore || 'EMPLOYEE');
+        setRoleInStore(res.roleInStore || (res.store.ownerId === user?.id ? 'OWNER' : 'EMPLOYEE'));
         setHourlyWage(res.hourlyWage || 0);
         return res.store;
       } else {
@@ -28,13 +28,12 @@ export const AuthProvider = ({ children }) => {
         return null;
       }
     } catch {
-      // Nhân viên chưa gia nhập cửa hàng nào
       setStore(null);
       setRoleInStore(null);
       setHourlyWage(0);
       return null;
     }
-  }, []);
+  }, [user?.id]);
 
   // Khôi phục phiên đăng nhập khi khởi động ứng dụng
   useEffect(() => {
@@ -45,14 +44,6 @@ export const AuthProvider = ({ children }) => {
           setToken(storedToken);
           const meRes = await authApi.getMe();
           if (meRes && meRes.success && meRes.user) {
-            // Kiểm tra role: Ứng dụng di động chỉ phục vụ EMPLOYEE
-            if (meRes.user.systemRole === 'ADMIN') {
-              await tokenStorage.clearAll();
-              setToken(null);
-              setUser(null);
-              setStore(null);
-              return;
-            }
             await tokenStorage.saveUser(meRes.user);
             await fetchMyStore();
             setUser(meRes.user);
@@ -83,32 +74,25 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await authApi.login({ email, password });
       if (res && res.success && res.token) {
-        // Chặn Chủ quán (ADMIN) vào app nhân viên
-        if (res.user.systemRole === 'ADMIN') {
-          throw new Error(
-            'Tài khoản của bạn là Chủ quán (Quản trị viên). Ứng dụng di động này được thiết kế riêng cho Nhân viên đi làm theo dõi ca & bảng lương. Vui lòng đăng nhập trên phiên bản Website để quản trị cửa hàng và xếp ca!'
-          );
-        }
-
         await tokenStorage.saveToken(res.token);
         await tokenStorage.saveUser(res.user);
         setToken(res.token);
 
-        // Fetch store TRƯỚC KHI setUser để tránh giật màn hình nhập mã mời
+        // Fetch store TRƯỚC KHI setUser để tránh chớp màn hình
         try {
           const storeRes = await storeApi.getMyStore();
           if (storeRes && storeRes.success && storeRes.store) {
             setStore(storeRes.store);
-            setRoleInStore(storeRes.roleInStore || 'EMPLOYEE');
+            setRoleInStore(storeRes.roleInStore || (res.user.systemRole === 'ADMIN' ? 'OWNER' : 'EMPLOYEE'));
             setHourlyWage(storeRes.hourlyWage || 0);
           } else {
             setStore(null);
-            setRoleInStore(null);
+            setRoleInStore(res.user.systemRole === 'ADMIN' ? 'OWNER' : null);
             setHourlyWage(0);
           }
         } catch {
           setStore(null);
-          setRoleInStore(null);
+          setRoleInStore(res.user.systemRole === 'ADMIN' ? 'OWNER' : null);
           setHourlyWage(0);
         }
 
@@ -138,6 +122,17 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Tạo cửa hàng mới (Dành cho Chủ quán ADMIN)
+  const createStore = async (storeData) => {
+    const res = await storeApi.createStore(storeData);
+    if (res && res.success && res.store) {
+      setStore(res.store);
+      setRoleInStore('OWNER');
+      return res.store;
+    }
+    throw new Error(res?.message || 'Không thể tạo cửa hàng.');
   };
 
   // Đăng xuất
@@ -179,6 +174,7 @@ export const AuthProvider = ({ children }) => {
         isLoading,
         login,
         register,
+        createStore,
         logout,
         fetchMyStore,
         refreshUserAndStore,
