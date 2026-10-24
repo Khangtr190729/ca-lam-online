@@ -22,7 +22,13 @@ export const AdminMemberScreen = () => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [inviteCode, setInviteCode] = useState(store?.inviteCode || '');
+  const getSafeCode = (rawCode) => {
+    if (!rawCode) return '';
+    if (typeof rawCode === 'object') return rawCode.code || '';
+    return String(rawCode);
+  };
+
+  const [inviteCode, setInviteCode] = useState(() => getSafeCode(store?.inviteCode));
   const [generatingCode, setGeneratingCode] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -51,7 +57,10 @@ export const AdminMemberScreen = () => {
 
   useEffect(() => {
     loadMembers();
-  }, [loadMembers]);
+    if (store?.inviteCode) {
+      setInviteCode(getSafeCode(store.inviteCode));
+    }
+  }, [loadMembers, store?.inviteCode]);
 
   // Generate Invite Code
   const handleGenerateCode = async () => {
@@ -59,8 +68,9 @@ export const AdminMemberScreen = () => {
       setGeneratingCode(true);
       const res = await storeApi.generateInviteCode();
       if (res?.success && res.inviteCode) {
-        setInviteCode(res.inviteCode);
-        Alert.alert('Thành công', `Mã mời mới của bạn là: ${res.inviteCode} (hiệu lực 60 phút).`);
+        const safeCode = getSafeCode(res.inviteCode);
+        setInviteCode(safeCode);
+        Alert.alert('Thành công', `Mã mời mới của bạn là: ${safeCode} (hiệu lực 60 phút).`);
       }
     } catch (err) {
       Alert.alert('Lỗi', err.message || 'Không thể tạo mã mời.');
@@ -69,7 +79,7 @@ export const AdminMemberScreen = () => {
     }
   };
 
-  const handleCopyCode = () => {
+  const handleCopyCode = (codeToCopy) => {
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2500);
   };

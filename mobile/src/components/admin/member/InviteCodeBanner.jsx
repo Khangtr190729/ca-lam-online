@@ -10,6 +10,12 @@ export const InviteCodeBanner = ({
   onCopyCode,
   generating = false,
 }) => {
+  // Safely extract string code if inviteCode is stored as an object { code, expiresAt }
+  const displayCode =
+    typeof inviteCode === 'object' && inviteCode !== null
+      ? (inviteCode.code || '')
+      : (typeof inviteCode === 'string' ? inviteCode : '');
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
@@ -35,13 +41,13 @@ export const InviteCodeBanner = ({
         Cung cấp mã 6 chữ số này cho nhân viên để họ nhập vào app di động (hiệu lực 60 phút):
       </Text>
 
-      {inviteCode ? (
+      {displayCode ? (
         <View style={styles.codeContainer}>
-          <Text style={styles.codeDigits}>{inviteCode}</Text>
+          <Text style={styles.codeDigits}>{displayCode}</Text>
 
           <TouchableOpacity
             style={styles.copyBtn}
-            onPress={onCopyCode}
+            onPress={() => onCopyCode(displayCode)}
             activeOpacity={0.7}
           >
             <Ionicons
